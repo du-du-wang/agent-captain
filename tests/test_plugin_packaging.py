@@ -104,7 +104,7 @@ class PluginPackagingTests(unittest.TestCase):
         result = self.generate()
         readme = (Path(result["plugin_root"]) / "README.md").read_text(encoding="utf-8")
         self.assertIn(
-            "https://github.com/jiale-wangOwO/agent-captain/blob/main/docs/management-session-product.md",
+            "https://github.com/du-du-wang/agent-captain/blob/main/docs/management-session-product.md",
             readme,
         )
         self.assertNotIn("../../docs/", readme)

@@ -43,7 +43,7 @@ Python 服务仅用标准库。通过 npm 安装终端依赖，浏览器资源�
 ## 快速开始
 
 ```sh
-git clone https://github.com/jiale-wangOwO/agent-captain.git agent-captain
+git clone https://github.com/du-du-wang/agent-captain.git agent-captain
 cd agent-captain
 npm ci
 python scripts/captain.py serve

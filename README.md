@@ -4,7 +4,7 @@
   <p><strong>One captain for agents across your machines.</strong></p>
   <p>Delegate, coordinate, and supervise local and remote coding agents through one lead conversation.<br>Set the goal, let your lead agent follow the work, and keep the final say.</p>
   <p>
-    <a href="https://github.com/jiale-wangOwO/agent-captain/actions/workflows/ci.yml"><img src="https://github.com/jiale-wangOwO/agent-captain/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+    <a href="https://github.com/du-du-wang/agent-captain/actions/workflows/ci.yml"><img src="https://github.com/du-du-wang/agent-captain/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-64748b" alt="License: MIT"></a>
     <a href="docs/guides/operator-guide.md#requirements"><img src="https://img.shields.io/badge/Python-3.11%2B-3776ab" alt="Python 3.11+"></a>
     <a href="docs/guides/operator-guide.md#requirements"><img src="https://img.shields.io/badge/Node.js-22%2B-43853d" alt="Node.js 22+"></a>
@@ -46,7 +46,7 @@ The **Captain is the model in a native local Codex conversation**, initialized w
 If you have a coding agent (Claude Code, Cursor, Codex, whatever), you don't need to read the rest of this file. Just say to it:
 
 ```text
-Please install https://github.com/jiale-wangOwO/agent-captain and get it running
+Please install https://github.com/du-du-wang/agent-captain and get it running
 on this computer. Follow its README and operator guide, and verify the local workbench.
 Help me start my first management session using my existing Codex setup, then ask which SSH
 machines and project folders I want to add. Preserve existing settings and sessions;
@@ -62,7 +62,7 @@ Any coding agent can help with installation; the Captain itself currently runs i
 You need **Python 3.11+**, **Node.js 22+**, npm, and a configured local **Codex CLI**. Remote workers additionally need Linux, OpenSSH, Python 3, tmux, and Codex for that remote user. See the [complete requirements](docs/guides/operator-guide.md#requirements).
 
 ```sh
-git clone https://github.com/jiale-wangOwO/agent-captain.git agent-captain
+git clone https://github.com/du-du-wang/agent-captain.git agent-captain
 cd agent-captain
 npm ci
 python scripts/captain.py serve

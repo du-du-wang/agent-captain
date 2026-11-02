@@ -44,7 +44,7 @@ The Python service uses the standard library. Terminal dependencies are installe
 ## Quick start
 
 ```sh
-git clone https://github.com/jiale-wangOwO/agent-captain.git agent-captain
+git clone https://github.com/du-du-wang/agent-captain.git agent-captain
 cd agent-captain
 npm ci
 python scripts/captain.py serve

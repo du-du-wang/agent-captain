@@ -42,7 +42,7 @@ An SSH banner or a single successful command is not proof that persistent displa
 ## Contribute · 参与贡献
 
 - [Contribution workflow](../CONTRIBUTING.md) — setup, offline tests, review expectations, and safe publication checks.
-- [Report a bug](https://github.com/jiale-wangOwO/agent-captain/issues/new/choose) — include a reproducible example and redact sensitive output before attaching it.
+- [Report a bug](https://github.com/du-du-wang/agent-captain/issues/new/choose) — include a reproducible example and redact sensitive output before attaching it.
 - [Security reporting](../SECURITY.md) — never put credentials or unredacted runtime data into an ordinary issue.
 - [Repository layout](repository-layout.md) — component boundaries and where source, documentation, and private installation state belong.
 - [Brand assets and usage](../assets/brand/README.md) — canonical logo, typography, palette, and generation provenance.

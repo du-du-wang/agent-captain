@@ -7,8 +7,8 @@ have permission to share.
 
 ## Start with a small, clear change
 
-- Use the [bug report](https://github.com/jiale-wangOwO/agent-captain/issues/new?template=bug_report.yml)
-  for a reproducible problem, or the [feature request](https://github.com/jiale-wangOwO/agent-captain/issues/new?template=feature_request.yml)
+- Use the [bug report](https://github.com/du-du-wang/agent-captain/issues/new?template=bug_report.yml)
+  for a reproducible problem, or the [feature request](https://github.com/du-du-wang/agent-captain/issues/new?template=feature_request.yml)
   to describe a workflow and how success should be checked. English and Chinese
   reports are welcome.
 - Check existing issues first. For a substantial change, discuss the problem and

@@ -4,7 +4,7 @@
   <p><strong>一个主控，统筹本机与远程 Agent。</strong><br><em>One captain for agents across your machines.</em></p>
   <p>通过一个主控对话，统一派发任务、跟进进度、协调协作和审查交付。<br>你定目标，主控协调，最终决策仍由你掌握。</p>
   <p>
-    <a href="https://github.com/jiale-wangOwO/agent-captain/actions/workflows/ci.yml"><img src="https://github.com/jiale-wangOwO/agent-captain/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+    <a href="https://github.com/du-du-wang/agent-captain/actions/workflows/ci.yml"><img src="https://github.com/du-du-wang/agent-captain/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-64748b" alt="MIT 许可证"></a>
     <a href="docs/guides/operator-guide.zh-CN.md#环境要求"><img src="https://img.shields.io/badge/Python-3.11%2B-3776ab" alt="Python 3.11+"></a>
     <a href="docs/guides/operator-guide.zh-CN.md#环境要求"><img src="https://img.shields.io/badge/Node.js-22%2B-43853d" alt="Node.js 22+"></a>
@@ -46,7 +46,7 @@
 If you have a coding agent (Claude Code, Cursor, Codex, whatever), you don't need to read the rest of this file. Just say to it:
 
 ```text
-请帮我安装 https://github.com/jiale-wangOwO/agent-captain，
+请帮我安装 https://github.com/du-du-wang/agent-captain，
 按照项目的 README 和操作指南，在这台电脑上启动并验证本地工作台。
 帮我使用现有 Codex 配置启动第一个管理会话，再问我想接入哪些 SSH 机器和项目目录。
 保留现有配置和会话；登录、密码、信任和审批提示由我自己处理。
@@ -60,7 +60,7 @@ If you have a coding agent (Claude Code, Cursor, Codex, whatever), you don't nee
 主控电脑需要 **Python 3.11+**、**Node.js 22+**、npm，以及配置好的本机 **Codex CLI**。远程工作机还需 Linux、OpenSSH、Python 3、tmux 和该用户的 Codex。见[完整环境要求](docs/guides/operator-guide.zh-CN.md#环境要求)。
 
 ```sh
-git clone https://github.com/jiale-wangOwO/agent-captain.git agent-captain
+git clone https://github.com/du-du-wang/agent-captain.git agent-captain
 cd agent-captain
 npm ci
 python scripts/captain.py serve

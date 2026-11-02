@@ -12,11 +12,11 @@ This is a branding update, not a new remote-control protocol or permission model
 
 ## Repository URL and publication status
 
-The canonical GitHub repository is [jiale-wangOwO/agent-captain](https://github.com/jiale-wangOwO/agent-captain). New checkouts can use `git clone https://github.com/jiale-wangOwO/agent-captain.git agent-captain`. Version 0.7 is a checkout-based source release under the [MIT license](../LICENSE), not a standalone installer or a PyPI/npm distribution.
+The canonical GitHub repository is [du-du-wang/agent-captain](https://github.com/du-du-wang/agent-captain). New checkouts can use `git clone https://github.com/du-du-wang/agent-captain.git agent-captain`. Version 0.7 is a checkout-based source release under the [MIT license](../LICENSE), not a standalone installer or a PyPI/npm distribution.
 
 Source publication does not expose a user's local runtime, settings, credentials, or saved sessions. Updating a checkout is not evidence that its changes have been committed, pushed or released. Repository visibility and release publication are separate hosting actions, not side effects of a branding migration. Experimental management-session and desktop-transfer boundaries remain unchanged.
 
-项目统一使用 [jiale-wangOwO/agent-captain](https://github.com/jiale-wangOwO/agent-captain)；0.7 是 MIT 许可的源码版本，不是独立安装器或 PyPI/npm 包。公开源码不包含用户的本地运行数据、凭据或会话。本地修改不代表已经提交、推送或发布，仓库改名也不会自行改变可见性；管理会话和桌面交接的实验性边界不变。
+项目统一使用 [du-du-wang/agent-captain](https://github.com/du-du-wang/agent-captain)；0.7 是 MIT 许可的源码版本，不是独立安装器或 PyPI/npm 包。公开源码不包含用户的本地运行数据、凭据或会话。本地修改不代表已经提交、推送或发布，仓库改名也不会自行改变可见性；管理会话和桌面交接的实验性边界不变。
 
 ## Existing installations: preserve identities and paths
 

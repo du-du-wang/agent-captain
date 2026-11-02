@@ -243,7 +243,7 @@ class RepositoryPresentationTests(unittest.TestCase):
                 prompt = re.search(r"```text\n(.*?)\n```", prompt_section, re.S)
                 self.assertIsNotNone(prompt, "Installation instructions should be a copyable plain-text prompt")
                 text = prompt.group(1)
-                self.assertIn("https://github.com/jiale-wangOwO/agent-captain", text)
+                self.assertIn("https://github.com/du-du-wang/agent-captain", text)
                 for requirement in requirements:
                     self.assertIn(requirement, text)
                 self.assertIn("npm ci", manual_section)

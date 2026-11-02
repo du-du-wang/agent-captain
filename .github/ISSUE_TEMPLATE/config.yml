@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Security and private reporting
-    url: https://github.com/jiale-wangOwO/agent-captain/blob/main/SECURITY.md#reporting-a-vulnerability
+    url: https://github.com/du-du-wang/agent-captain/blob/main/SECURITY.md#reporting-a-vulnerability
     about: Read the private reporting guidance before sharing a security-sensitive issue.
   - name: Contribution guide
-    url: https://github.com/jiale-wangOwO/agent-captain/blob/main/CONTRIBUTING.md
+    url: https://github.com/du-du-wang/agent-captain/blob/main/CONTRIBUTING.md
     about: Development checks, safe test data, and change boundaries.

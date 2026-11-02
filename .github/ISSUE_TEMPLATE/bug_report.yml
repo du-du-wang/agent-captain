@@ -11,7 +11,7 @@ body:
         descriptors, authentication files, tokens, passwords, private keys, real
         hostnames/IP addresses, Session IDs, business conversations, or raw logs.
         Use synthetic examples. Review screenshots and command output before sharing.
-        For a vulnerability, follow [SECURITY.md](https://github.com/jiale-wangOwO/agent-captain/blob/main/SECURITY.md)
+        For a vulnerability, follow [SECURITY.md](https://github.com/du-du-wang/agent-captain/blob/main/SECURITY.md)
         instead of opening a normal issue. Do not restart working agents to reproduce a bug.
   - type: checkboxes
     id: preparation

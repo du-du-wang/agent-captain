@@ -24,7 +24,7 @@ role changes. Reports distinguish submitted input, actual work, results awaiting
 acceptance, verified outcomes and blockers. Neither submitted input nor a worker
 claim proves completion; specification/revision and test/artifact evidence matter.
 The human retains final decisions, and the plugin does not automatically wake an
-idle management chat. See [the management contract](https://github.com/jiale-wangOwO/agent-captain/blob/main/docs/management-session-product.md).
+idle management chat. See [the management contract](https://github.com/du-du-wang/agent-captain/blob/main/docs/management-session-product.md).
 
 The management tools provide an enrolled-worker cached overview, display aliases /
 pins (`update_agent`), and user-requested display reattachment to an existing
