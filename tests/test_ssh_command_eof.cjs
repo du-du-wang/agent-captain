@@ -125,12 +125,12 @@ test('SSH probe, resize, and close end only auxiliary stdin, keeping interactive
     assert.equal(command.child.stdin.writableEnded, true);
     const isForeground = command.args.at(-1).includes('ceo-hub-foreground-probe');
     const isResize = command.args.at(-1).includes("'resize'");
-    assert.ok(command.args.includes(isForeground || isResize ? 'ConnectTimeout=20' : 'ConnectTimeout=8'));
+    assert.ok(command.args.includes(isForeground || isResize ? 'ConnectTimeout=60' : 'ConnectTimeout=8'));
     if (isForeground || isResize) {
       assert.ok(command.args.includes('ControlMaster=no'));
       assert.ok(command.args.includes('ControlPersist=no'));
       assert.ok(command.args.includes('ControlPath=none'), 'An existing configured master cannot bypass the independent check');
-      assert.equal(command.options.timeout, 45000, 'Authenticated probe/resize queries share a bounded slow-relay budget');
+      assert.equal(command.options.timeout, 150000, 'Authenticated probe/resize queries share a bounded slow-relay budget');
     } else {
       assert.ok(command.options.timeout <= 18000, 'Other auxiliary operations retain their existing budget');
     }

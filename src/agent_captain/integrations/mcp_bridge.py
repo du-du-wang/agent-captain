@@ -34,6 +34,17 @@ PROTOCOL_VERSIONS = ("2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25")
 MAX_MESSAGE_BYTES = 2 * 1024 * 1024
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 
+# Kept self-contained for generated/cache plugins. Budget tests compare these
+# against the real broker command limits and the Python loopback client.
+SERVICE_TIMEOUTS = {
+    "reconnect_agent": 600,
+    "reopen_agent": 210,
+    "send_agent_message": 840,
+    "create_agent": 840,
+    "send_terminal_input": 200,
+    "read_agent": 330,
+}
+
 
 def schema(properties: dict[str, Any], required: tuple[str, ...] = ()) -> dict[str, Any]:
     return {"type": "object", "properties": properties, "required": list(required),
@@ -174,27 +185,15 @@ def call_service(name: str, arguments: dict[str, Any]) -> Any:
     opener = build_opener(ProxyHandler({}), NoRedirect())
     if name == "poll_events":
         timeout = max(65, arguments.get("timeout_seconds", 0) + 10)
-    elif name == "reconnect_agent":
-        # Continuity checks can need four 45-second SSH reads around display
-        # RPCs that wait for a fresh foreground proof on relayed routes.
-        # Keep this allowance separate from delivery.
-        timeout = 330
-    elif name == "reopen_agent":
-        # Preflight, verified close and new-shell creation have separate bounded
-        # RPCs. A timeout must retain the original destructive operation key.
-        timeout = 210
-    elif name == "send_agent_message":
-        # Each fresh prompt check may first join an in-flight passive check
-        # (up to four checks). The broker client allows 200 seconds for delivery;
-        # a queued or timed-out action still retains its original request key.
-        timeout = 225
-    elif name == "read_agent":
-        # A display snapshot can wait up to 55 seconds; verified output then
-        # uses one 75-second SSH transaction, with at most one 45-second
-        # transient-only retry. The combined 175-second allowance leaves room
-        # for service overhead below this MCP deadline.
-        # Read allowance never changes uncertain-input delivery semantics.
-        timeout = 210
+    elif name in SERVICE_TIMEOUTS:
+        # Read: one 165-second display RPC + the existing 75+45 history policy.
+        # Reconnect: two 150-second original-pane probes, a display RPC and
+        # optional pair of short continuity reads. Prompt: up to four fresh /
+        # in-flight foreground checks, with room for a preceding display read.
+        # An authorized create can include both startup input and a prompt.
+        # Queue waits are not evidence of non-delivery: every uncertain action
+        # retains its original key. No timeout branch retries input or close.
+        timeout = SERVICE_TIMEOUTS[name]
     else:
         timeout = 120
     try:

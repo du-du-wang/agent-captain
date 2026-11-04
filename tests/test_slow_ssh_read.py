@@ -1,5 +1,8 @@
 """Bounded slow-SSH reads and explicit pre-attachment retry, without live SSH."""
 import importlib.util
+import json
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 import tempfile
@@ -128,6 +131,16 @@ class SlowSSHReconnectTests(unittest.TestCase):
                 self.assertEqual(self.creates(), [])
                 self.assertEqual(self.terminals.writes, [])
 
+    def test_original_pane_check_allows_slow_authentication_without_changing_its_identity_protocol(self):
+        reply = subprocess.CompletedProcess([], 0,
+            'CEO_HUB_PTY_RESULT=' + json.dumps(self.answer) + '\n', '')
+        with patch('agent_captain.core.terminal_hub.subprocess.run', return_value=reply) as run:
+            value = Hub._probe_remote_terminal(self.hub, 'remote', TERMINAL)
+        self.assertEqual(value, self.answer)
+        self.assertEqual(run.call_args.kwargs['timeout'], 150)
+        self.assertIn('ConnectTimeout=60', run.call_args.args[0])
+        self.assertEqual(run.call_args.args[0][-1], 'python3 - probe --session ' + TERMINAL)
+
 
 class SlowSSHMCPBudgetTests(unittest.TestCase):
     def service_timeout(self, name, arguments=None, bridge=mcp_bridge):
@@ -141,16 +154,16 @@ class SlowSSHMCPBudgetTests(unittest.TestCase):
         return opener.open.call_args.kwargs["timeout"]
 
     def test_read_and_reconnect_have_distinct_bounded_ssh_budgets(self):
-        for name, timeout in (("read_agent", 210), ("reconnect_agent", 330)):
+        for name, timeout in (("read_agent", 330), ("reconnect_agent", 600)):
             with self.subTest(tool=name):
                 self.assertEqual(self.service_timeout(name, {"agent_id": "remote::worker", "request_key": "same-key"}), timeout)
 
-    def test_reconnect_budget_covers_four_bounded_identity_checks_and_display_rpcs(self):
-        ssh_checks = 4 * 45
-        display_rpcs = 2 * 55
-        registry_reads = 2 * 3
-        self.assertEqual(ssh_checks + display_rpcs + registry_reads, 296)
-        self.assertLess(ssh_checks + display_rpcs + registry_reads, self.service_timeout("reconnect_agent"))
+    def test_reconnect_budget_covers_original_pane_checks_optional_continuity_reads_and_display_rpc(self):
+        from agent_captain.transport.terminal_client import FOREGROUND_RPC_TIMEOUT, SSH_CONTROL_TIMEOUT
+        checks = 2 * SSH_CONTROL_TIMEOUT + 2 * 45
+        display_create_and_registry = 20 + 2 * 3
+        self.assertLess(checks + FOREGROUND_RPC_TIMEOUT + display_create_and_registry,
+                        self.service_timeout("reconnect_agent"))
 
     def test_generated_plugin_uses_matching_budgets_without_reading_credentials(self):
         root = Path(__file__).resolve().parents[1]
@@ -164,20 +177,51 @@ class SlowSSHMCPBudgetTests(unittest.TestCase):
             generated = importlib.util.module_from_spec(spec)
             with patch.dict(sys.modules), patch.object(sys, "path", [str(filename.parent), *sys.path]):
                 spec.loader.exec_module(generated)
-            for name in ("read_agent", "reconnect_agent", "send_agent_message", "send_terminal_input", "update_agent", "poll_events"):
+            for name in ("read_agent", "reconnect_agent", "send_agent_message", "send_terminal_input", "create_agent", "update_agent", "poll_events"):
                 with self.subTest(tool=name):
                     self.assertEqual(self.service_timeout(name, bridge=generated), self.service_timeout(name))
 
-    def test_read_budget_covers_snapshot_and_three_independent_identity_reads(self):
-        self.assertLess(55 + 3 * 45, self.service_timeout("read_agent"))
+    def test_read_budget_covers_snapshot_and_existing_bounded_history_policy(self):
+        from agent_captain.transport.terminal_client import FOREGROUND_RPC_TIMEOUT
+        self.assertLess(FOREGROUND_RPC_TIMEOUT + 75 + 45 + 2 * 3, self.service_timeout("read_agent"))
 
     def test_prompt_budget_covers_in_flight_probes_and_both_fresh_identity_checks(self):
-        from agent_captain.transport.terminal_client import PROMPT_RPC_TIMEOUT
-        self.assertGreater(PROMPT_RPC_TIMEOUT, 4 * 45)
-        self.assertGreater(self.service_timeout("send_agent_message"), PROMPT_RPC_TIMEOUT)
+        from agent_captain.transport.terminal_client import FOREGROUND_RPC_TIMEOUT, PROMPT_RPC_TIMEOUT, SSH_CONTROL_TIMEOUT
+        self.assertGreater(PROMPT_RPC_TIMEOUT, 4 * SSH_CONTROL_TIMEOUT)
+        self.assertGreater(self.service_timeout("send_agent_message"), FOREGROUND_RPC_TIMEOUT + PROMPT_RPC_TIMEOUT)
+
+    def test_real_broker_deadlines_fit_inside_client_and_mcp_waits(self):
+        """Cross-language guard: raising a broker limit must not orphan callers."""
+        node = shutil.which('node')
+        if node is None:
+            self.skipTest('Node.js is required to inspect the broker control budget')
+        root = Path(__file__).resolve().parents[1]
+        raw = subprocess.check_output([node, '-e',
+            "process.stdout.write(JSON.stringify(require('./terminal/terminal_broker.cjs').SSH_CONTROL_BUDGET))"],
+            cwd=root, timeout=10, text=True, encoding='utf-8')
+        budget = json.loads(raw)
+        self.assertGreaterEqual(budget['commandMs'], 150000, 'Allow a complete slow SSH authentication/control exchange')
+        self.assertLess(budget['commandMs'], 180000, 'The auxiliary command remains bounded')
+        self.assertLess(budget['connectSeconds'], budget['commandMs'] / 1000)
+        from agent_captain.transport.terminal_client import TerminalClient
+        client = TerminalClient()
+        with patch.object(client, 'request', return_value={}) as request:
+            client.snapshot('ceohub-0123456789abcdef', 1)
+            foreground_rpc = request.call_args.kwargs['timeout']
+            self.assertGreater(foreground_rpc, budget['commandMs'] / 1000)
+            client.write('ceohub-0123456789abcdef', 'resize', {'cols': 90, 'rows': 28})
+            self.assertEqual(request.call_args.kwargs['timeout'], foreground_rpc)
+            client.write('ceohub-0123456789abcdef', 'prompt', {'text': 'fixture'})
+            prompt_rpc = request.call_args.kwargs['timeout']
+        self.assertGreater(prompt_rpc, 4 * budget['commandMs'] / 1000)
+        self.assertGreater(self.service_timeout('send_agent_message'), foreground_rpc + prompt_rpc)
+        self.assertGreater(self.service_timeout('send_terminal_input'), foreground_rpc)
+        self.assertGreater(self.service_timeout('read_agent'), foreground_rpc + 75 + 45)
+        self.assertGreater(self.service_timeout('create_agent'), 20 + foreground_rpc + prompt_rpc,
+                           'Creation may include authorized startup input followed by one prompt')
 
     def test_deliveries_input_and_other_tools_keep_original_120_second_budget(self):
-        for name in ("send_terminal_input", "update_agent", "get_agent", "list_active_agents",
+        for name in ("update_agent", "get_agent", "list_active_agents",
                      "create_terminal", "read_terminal_history", "get_delivery"):
             with self.subTest(tool=name):
                 self.assertEqual(self.service_timeout(name), 120)

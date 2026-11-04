@@ -17,7 +17,7 @@ from agent_captain.sessions import catalog, response_wire
 from agent_captain.transport.directory_browser import DirectoryBrowser
 from agent_captain.transport.ssh_source import pack_python_source
 from agent_captain.infrastructure.store import Store
-from agent_captain.transport.terminal_client import BrokerError, TerminalClient
+from agent_captain.transport.terminal_client import BrokerError, TerminalClient, SSH_CONTROL_CONNECT_TIMEOUT, SSH_CONTROL_TIMEOUT
 from agent_captain.core.controllers import ControllerService, default_workspace_root
 from agent_captain.core.management_policy import public_management_policy
 from agent_captain.transport import remote_terminal_history, remote_terminal_close
@@ -1187,9 +1187,9 @@ class Hub:
         # only reads the chosen tmux/pane identity, never input or model config.
         source = source_path("transport", "remote_pty_bridge.py").read_text(encoding="utf-8")
         try:
-            reply = subprocess.run(["ssh", "-T", "-o", "BatchMode=yes", "-o", "ControlMaster=no", "-o", "ControlPersist=no", "-o", "ConnectTimeout=30",
+            reply = subprocess.run(["ssh", "-T", "-o", "BatchMode=yes", "-o", "ControlMaster=no", "-o", "ControlPersist=no", "-o", f"ConnectTimeout={SSH_CONTROL_CONNECT_TIMEOUT}",
                 target, "python3 - probe --session " + shlex.quote(terminal_id)], input=pack_python_source(source),
-                text=True, encoding="utf-8", errors="replace", capture_output=True, timeout=45,
+                text=True, encoding="utf-8", errors="replace", capture_output=True, timeout=SSH_CONTROL_TIMEOUT,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             if reply.returncode or len(reply.stdout) > 65536:
                 detail = (reply.stderr or "")[:4096].casefold()

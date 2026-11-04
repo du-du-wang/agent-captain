@@ -32,6 +32,9 @@ const SESSION_ID = /^ceohub-[a-f0-9]{16,48}$/;
 const SHELLS = new Set(['bash', 'sh', 'zsh', 'fish', 'dash', 'pwsh', 'powershell', 'cmd']);
 const AGENTS = /(?:^|[\\/\s])(?:codex|claude|aider|opencode|gemini)(?:\.(?:exe|cmd|ps1|cjs|mjs|js))?(?:$|[\s\\/])/i;
 const MAX_OUTPUT = 2 * 1024 * 1024;
+// Authentication on relayed routes can exceed a minute. This is a complete
+// control-command deadline, not permission to reuse identity or resize proofs.
+const SSH_CONTROL_BUDGET = Object.freeze({ connectSeconds: 60, commandMs: 150000 });
 
 class ApiError extends Error {
   constructor(status, code, message) { super(message); this.status = status; this.code = code; }
@@ -231,9 +234,9 @@ function spawnSshPipe(file, args, options) {
         // Resizing uses its own authenticated SSH connection, just like the
         // foreground probe. Do not time it out before a slow relay can even
         // finish authentication; a missing/mismatched ACK still fences input.
-        result = await commandResult(file, ['-T', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=20',
+        result = await commandResult(file, ['-T', '-o', 'BatchMode=yes', '-o', `ConnectTimeout=${SSH_CONTROL_BUDGET.connectSeconds}`,
           '-o', 'ControlMaster=no', '-o', 'ControlPersist=no', '-o', 'ControlPath=none', options.target,
-          remoteBridgeCommand('resize', { sessionId: options.sessionId, bridgeId: options.bridgeId, cols, rows })], 45000);
+          remoteBridgeCommand('resize', { sessionId: options.sessionId, bridgeId: options.bridgeId, cols, rows })], SSH_CONTROL_BUDGET.commandMs);
       } catch (error) { result = { stdout: typeof error.stdout === 'string' ? error.stdout : '' }; }
       const marker = 'CEO_HUB_PTY_RESULT=';
       const line = String(result.stdout || '').split(/\r?\n/).reverse().find(line => line.startsWith(marker));
@@ -617,12 +620,12 @@ class TerminalBroker {
 
   async probeForeground(session) {
     if (session.transport === 'ssh') {
-      // Relayed SSH can take longer than 12 seconds even when the remote probe
+      // Relayed SSH authentication can exceed a minute even when the remote probe
       // itself is immediate. Bound the complete independent query generously;
       // its failure still clears identity rather than reusing an old proof.
-      const result = await commandResult(sshExecutable(), ['-T', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=20',
+      const result = await commandResult(sshExecutable(), ['-T', '-o', 'BatchMode=yes', '-o', `ConnectTimeout=${SSH_CONTROL_BUDGET.connectSeconds}`,
         '-o', 'ControlMaster=no', '-o', 'ControlPersist=no', '-o', 'ControlPath=none', session.target,
-        remoteForegroundCommand(session.id)], 45000);
+        remoteForegroundCommand(session.id)], SSH_CONTROL_BUDGET.commandMs);
       const marker = 'CEO_HUB_FOREGROUND_RESULT=';
       const line = String(result.stdout || '').split(/\r?\n/).reverse().find(line => line.startsWith(marker));
       let identity;
@@ -1128,5 +1131,5 @@ async function main() {
   });
 }
 
-module.exports = { main, TerminalBroker, ApiError, createServer, descriptorPath, shellQuote, classifyCommand, updateHumanInput, blockedScreen, spawnSshPipe, remoteBridgeCommand, remoteCloseCommand, validRemoteCloseIdentity, directRootIdentity, nativeRootKind, recoveryGuard, verifyRecoveryInputs, requireRefusedRecoveryPort, initializeOwnedDisplay, recoveryOwnerState, validOwnerIdentity, ownBrokerIdentity, parseOwnerLock };
+module.exports = { main, TerminalBroker, ApiError, createServer, descriptorPath, shellQuote, classifyCommand, updateHumanInput, blockedScreen, spawnSshPipe, remoteBridgeCommand, remoteCloseCommand, validRemoteCloseIdentity, directRootIdentity, nativeRootKind, recoveryGuard, verifyRecoveryInputs, requireRefusedRecoveryPort, initializeOwnedDisplay, recoveryOwnerState, validOwnerIdentity, ownBrokerIdentity, parseOwnerLock, SSH_CONTROL_BUDGET };
 if (require.main === module) main().catch(error => { process.stderr.write(`Terminal broker failed: ${error.message}\n`); process.exitCode = 1; });
