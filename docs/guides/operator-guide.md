@@ -124,6 +124,23 @@ Reconnection only reattaches the original remote persistent terminal. It must no
 
 Workers and managers are separate records and terminal services. A manager is not registered as its own worker; authenticated tools reject manager-to-manager operations and recursive management creation. These are Hub API safeguards, not operating-system sandbox isolation.
 
+### Auto reconnect every 10 minutes
+
+Enable **Auto reconnect (every 10 minutes)** in an SSH worker's **More** menu or
+detail view. Each terminal defaults to off. The Hub saves the setting and the
+next attempt, so closing the webpage does not stop it; the backend must remain
+running. Once the display is disconnected, the first attempt is due in 10
+minutes. Later temporary route failures can retry every 10 minutes. Sleep does
+not wake the computer, and overdue work resumes with one attempt rather than a
+burst of catch-up attempts.
+
+Recovery attaches the same original tmux and preserves its work. It sends no
+Codex/resume command or task input. Missing original sessions, login/host-key
+requirements and unknown reconnect results pause for inspection. Turn the
+switch off to stop future attempts; an attempt already in progress may finish.
+Closing or reopening the terminal retires its old setting. A replacement starts
+with auto reconnect off.
+
 ### Reopen a terminal (destructive)
 
 Use **Reopen terminal…** (「重开终端…」) in the worker's **More** menu or detail view only when you intend to replace its terminal, not merely reconnect. Check the displayed machine, name, directory and old terminal ID; save any needed drafts, then explicitly confirm ending the old terminal and its foreground work. The identity-proven original terminal and foreground processes are stopped, and its owned tmux is removed if present; unrelated sessions and independently detached daemons are not promised to stop. Project files are not deleted. Missing or ambiguous ownership/close evidence fails closed, with no ordinary-close fallback.

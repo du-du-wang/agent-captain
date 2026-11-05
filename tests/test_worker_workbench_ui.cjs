@@ -35,6 +35,7 @@ async function harness(options = {}) {
       if (url.startsWith('/api/state')) return reply({hosts, agents, outbox: options.outbox || [], events: []});
       if (url.startsWith('/api/terminals/output')) { const query = new URLSearchParams(url.split('?')[1]); const agent = agents.find(a => a.host === query.get('host') && a.thread_id === query.get('thread_id')); return reply({data: '', seq: 1, reset: true, cols: 100, rows: 30, connected: agent?.connected !== false}); }
       if (url === '/api/agents/update') { const agent = agents.find(a => a.host === body.host && a.thread_id === body.thread_id); Object.assign(agent, body); return reply({...agent}); }
+      if (url === '/api/agents/auto-reconnect') { const agent = agents.find(a => a.host === body.host && a.thread_id === body.thread_id); agent.auto_reconnect = {enabled: body.enabled, interval_seconds: 600, status: body.enabled ? agent.connected ? 'connected' : 'waiting' : 'off', next_attempt_at: body.enabled && !agent.connected ? 1792304700 : null}; return reply({...agent}); }
       if (url === '/api/agents/reconnect') { const agent = agents.find(a => a.host === body.host && a.thread_id === body.thread_id); agent.connected = true; return reply({...agent, recovery: {code: 'connected', message: '已重新连接原 tmux 显示，未运行 resume 或任务。'}}); }
       if (url === '/api/agents/read') return reply({messages: [], signals: [], content_complete: true, has_more: false});
       return reply({accepted: true});
@@ -200,8 +201,147 @@ test('registered workers expose naming directly with no activation or per-worker
   const cards = h.get('#agents').children;
   assert.ok(cards.every(card => cardButton(card, '重命名')));
   assert.equal(cards.some(card => descendants(card).some(item => /当前主控|管理范围|未加入管理名单/.test(item.textContent))), false);
-  assert.equal(cards.some(card => descendants(card).some(item => item.type === 'checkbox')), false);
+  assert.ok(cards.flatMap(descendants).filter(item => item.type === 'checkbox').every(item => item.className === 'auto-reconnect-checkbox'), 'Only the optional SSH reconnect preference may use a checkbox, never a management grant');
   assert.equal(opened, 0); assert.equal(h.calls.some(c => /activate|scope/.test(c.url)), false);
+});
+
+test('auto reconnect defaults off and appears only for open SSH workers', async () => {
+  const h = await harness({agents: [worker('local', 'local', 'Local'), worker('remote', 'open', 'Remote'),
+    worker('remote', 'closed', 'Closed', {closed: true, mode: 'closed', state: 'closed'}),
+    worker('remote', 'closing', 'Closing', {mode: 'close_unknown', state: 'close_unknown'}),
+    worker('remote', 'manager', 'Manager', {kind: 'controller'})]});
+  const checks = h.get('#agents').children.flatMap(descendants).filter(item => item.type === 'checkbox');
+  assert.equal(checks.length, 1); assert.equal(checks[0].checked, false); assert.equal(checks[0].disabled, false);
+  await h.context.selectAgent(h.agents[0]); assert.equal(h.get('#agent-auto-reconnect').hidden, true);
+  await h.context.selectAgent(h.agents[1]); assert.equal(h.get('#agent-auto-reconnect').hidden, false);
+  assert.equal(h.get('#agent-auto-reconnect-enabled').checked, false);
+  assert.equal(h.calls.some(call => call.options.method === 'POST'), false, 'Showing the setting never enables or reconnects anything');
+});
+
+test('card opt-in persists the frozen original terminal preference without opening or reconnecting it', async () => {
+  const h = await harness({agents: [worker('remote', 'one', 'Remote', {connected: false})]});
+  const input = descendants(h.get('#agents').children[0]).find(item => item.type === 'checkbox');
+  input.checked = true; await input.onchange();
+  const writes = h.calls.filter(call => call.options.method === 'POST');
+  assert.equal(writes.length, 1); assert.equal(writes[0].url, '/api/agents/auto-reconnect');
+  assert.deepEqual(writes[0].body, {host: 'remote', thread_id: 'one', enabled: true,
+    expected_terminal_id: h.agents[0].terminal_id, request_key: 'workbench-operation-1'});
+  assert.equal(h.agents[0].auto_reconnect.enabled, true);
+  assert.ok(descendants(h.get('#agents').children[0]).some(item => /下次尝试.*本地时间/.test(item.textContent)));
+  assert.equal(vm.runInContext('selectedAgent', h.context), null); assert.equal(h.terminals.length, 0);
+});
+
+test('detail opt-out updates the same preference and preserves the worker terminal and human draft', async () => {
+  const h = await harness({agents: [worker('remote', 'one', 'Remote', {auto_reconnect: {enabled: true, interval_seconds: 600, status: 'connected'}})]});
+  await h.context.selectAgent(h.agents[0]);
+  const session = vm.runInContext('terminalSession', h.context); session.input = 'human draft';
+  const input = h.get('#agent-auto-reconnect-enabled'); assert.equal(input.checked, true);
+  input.checked = false; await input.onchange();
+  assert.equal(h.agents[0].auto_reconnect.enabled, false); assert.equal(h.get('#agent-auto-reconnect-enabled').checked, false);
+  assert.equal(vm.runInContext('terminalSession', h.context), session); assert.equal(session.input, 'human draft'); assert.equal(session.term.focusCount, 0);
+  assert.equal(h.calls.filter(call => call.options.method === 'POST').length, 1);
+  assert.ok(h.calls.every(call => !/\/input|\/prompt|\/reconnect$|\/create|\/reopen|\/connect$/.test(call.url)));
+});
+
+test('failed auto reconnect save restores the authoritative value without retrying or touching a manual recovery key', async () => {
+  const h = await harness({agents: [worker('remote', 'one', 'Remote')], handle: async call => {
+    if (call.url === '/api/agents/auto-reconnect') return {ok: false, status: 409, json: async () => ({error: '终端已切换，请刷新'})};
+  }});
+  await h.context.selectAgent(h.agents[0]);
+  vm.runInContext("reconnectOperations.set('remote:one',{requestKey:'manual-key',acknowledged:false})", h.context);
+  const input = h.get('#agent-auto-reconnect-enabled'); input.checked = true; await input.onchange();
+  assert.equal(h.get('#agent-auto-reconnect-enabled').checked, false); assert.equal(h.get('#agent-auto-reconnect-enabled').disabled, false);
+  assert.match(h.get('#toast').textContent, /终端已切换/);
+  await h.context.refresh(true); await h.context.refresh(true);
+  assert.equal(h.calls.filter(call => call.options.method === 'POST').length, 1);
+  assert.equal(vm.runInContext("reconnectOperations.get('remote:one').requestKey", h.context), 'manual-key');
+});
+
+test('in-flight preference save disables both controls and ignores a stale terminal-generation response', async () => {
+  let release;
+  const h = await harness({agents: [worker('remote', 'one', 'Remote')], handle: async (call, backend) => {
+    if (call.url !== '/api/agents/auto-reconnect') return null;
+    return await new Promise(resolve => { release = () => resolve(backend.reply({...backend.agents[0], terminal_id: call.body.expected_terminal_id,
+      auto_reconnect: {enabled: true, interval_seconds: 600, status: 'waiting'}})); });
+  }});
+  await h.context.selectAgent(h.agents[0]);
+  const input = h.get('#agent-auto-reconnect-enabled'); input.checked = true;
+  const saving = input.onchange(); await settle();
+  assert.equal(h.get('#agent-auto-reconnect-enabled').disabled, true);
+  assert.equal(descendants(h.get('#agents').children[0]).find(item => item.type === 'checkbox').disabled, true);
+  h.agents[0].terminal_id = 'ceohub-new-generation'; await h.context.refresh(true);
+  release(); await saving;
+  assert.equal(h.get('#agent-auto-reconnect-enabled').checked, false);
+  assert.match(h.get('#toast').textContent, /保存期间已切换/);
+  assert.equal(h.calls.filter(call => call.options.method === 'POST').length, 1);
+});
+
+test('an old checkbox cannot enable automatic reconnect for a replacement terminal', async () => {
+  const h = await harness({agents: [worker('remote', 'one', 'Remote')]});
+  const input = descendants(h.get('#agents').children[0]).find(item => item.type === 'checkbox');
+  h.agents[0].terminal_id = 'ceohub-replacement'; input.checked = true; await input.onchange();
+  assert.equal(h.calls.some(call => call.options.method === 'POST'), false);
+  assert.match(h.get('#toast').textContent, /终端已切换或关闭/);
+});
+
+test('a lost preference response rolls back the checkbox and polling never resubmits it', async () => {
+  const h = await harness({agents: [worker('remote', 'one', 'Remote')], handle: async call => {
+    if (call.url === '/api/agents/auto-reconnect') throw new Error('connection lost');
+  }});
+  const input = descendants(h.get('#agents').children[0]).find(item => item.type === 'checkbox');
+  input.checked = true; await input.onchange();
+  assert.equal(descendants(h.get('#agents').children[0]).find(item => item.type === 'checkbox').checked, false);
+  assert.match(h.get('#toast').textContent, /无法连接本机/);
+  await h.context.refresh(true); await h.context.refresh(true);
+  assert.equal(h.calls.filter(call => call.options.method === 'POST').length, 1);
+});
+
+test('late preference confirmation stays on the original worker after selection changes', async () => {
+  let release;
+  const h = await harness({agents: [worker('remote', 'one', 'Alpha'), worker('remote', 'two', 'Beta')], handle: async (call, backend) => {
+    if (call.url !== '/api/agents/auto-reconnect') return null;
+    return await new Promise(resolve => { release = () => {
+      backend.agents[0].auto_reconnect = {enabled: true, interval_seconds: 600, status: 'connected'};
+      resolve(backend.reply({...backend.agents[0]}));
+    }; });
+  }});
+  const input = descendants(h.get('#agents').children[0]).find(item => item.type === 'checkbox');
+  input.checked = true; const saving = input.onchange(); await settle();
+  await h.context.selectAgent(h.agents[1]);
+  const session = vm.runInContext('terminalSession', h.context); session.input = 'Beta draft';
+  release(); await saving;
+  assert.equal(h.agents[0].auto_reconnect.enabled, true);
+  assert.equal(h.get('#agent-auto-reconnect-enabled').checked, false);
+  assert.equal(vm.runInContext('selectedAgent', h.context), 'remote:two');
+  assert.equal(vm.runInContext('terminalSession', h.context), session); assert.equal(session.input, 'Beta draft');
+  assert.equal(session.term.focusCount, 0); assert.equal(h.calls.filter(call => call.options.method === 'POST').length, 1);
+});
+
+test('backend automatic reconnect progress is rendered by polling without retrying a manual uncertain action or stealing focus', async () => {
+  const h = await harness({agents: [worker('remote', 'one', 'Remote', {connected: false,
+    auto_reconnect: {enabled: true, interval_seconds: 600, status: 'waiting', next_attempt_at: 1792304700}})]});
+  await h.context.selectAgent(h.agents[0]); const session = vm.runInContext('terminalSession', h.context); session.input = 'keep draft';
+  vm.runInContext("reconnectOperations.set('remote:one',{requestKey:'manual-unknown',acknowledged:false})", h.context);
+  h.agents[0].auto_reconnect.status = 'reconnecting'; await h.context.refresh(true);
+  assert.match(h.get('#agent-auto-reconnect-status').textContent, /后台正在重连原终端/);
+  h.agents[0].auto_reconnect.status = 'needs_attention'; h.agents[0].auto_reconnect.last_result = {code: 'original_session_missing', message: '原终端不存在'};
+  await h.context.refresh(true); assert.match(h.get('#agent-auto-reconnect-status').textContent, /原终端不存在/);
+  assert.equal(vm.runInContext('terminalSession', h.context), session); assert.equal(session.input, 'keep draft'); assert.equal(session.term.focusCount, 0);
+  assert.equal(vm.runInContext("reconnectOperations.get('remote:one').requestKey", h.context), 'manual-unknown');
+  assert.equal(h.calls.filter(call => call.options.method === 'POST').length, 0);
+});
+
+test('auto reconnect time comes only from a valid backend schedule and text is rendered safely', async () => {
+  const h = await harness();
+  for (const value of [null, undefined, NaN, Infinity, -1, 0, '1792304700']) {
+    const view = h.context.autoReconnectView({auto_reconnect: {enabled: true, status: 'waiting', next_attempt_at: value}});
+    assert.match(view.text, /断线后每 10 分钟尝试/); assert.doesNotMatch(view.text, /下次尝试/);
+  }
+  const text = '<img src=x onerror=alert(1)>';
+  h.agents[1].auto_reconnect = {enabled: true, status: 'needs_attention', last_result: {message: text}};
+  await h.context.selectAgent(h.agents[1]);
+  assert.ok(h.get('#agent-auto-reconnect-status').textContent.includes(text));
+  assert.equal(h.get('#agent-auto-reconnect-status').children.length, 0);
 });
 
 test('old active-only preference is normalized away without hiding false-active registered workers', async () => {

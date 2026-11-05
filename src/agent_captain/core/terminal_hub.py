@@ -20,6 +20,7 @@ from agent_captain.infrastructure.store import Store
 from agent_captain.transport.terminal_client import BrokerError, TerminalClient, SSH_CONTROL_CONNECT_TIMEOUT, SSH_CONTROL_TIMEOUT
 from agent_captain.core.controllers import ControllerService, default_workspace_root
 from agent_captain.core.management_policy import public_management_policy
+from agent_captain.core.auto_reconnect import AutoReconnect
 from agent_captain.transport import remote_terminal_history, remote_terminal_close
 from agent_captain.paths import ROOT, source_path
 RETRYABLE = ("queued", "waiting_for_agent", "human_busy", "awaiting_connection", "blocked")
@@ -94,6 +95,7 @@ class Hub:
         self.terminals = terminals if terminals is not None else TerminalClient()
         self.directories = directories if directories is not None else DirectoryBrowser()
         self.registry_lock = threading.RLock()
+        self._auto_config_lock = threading.RLock()
         # Admission is fail-fast, not a network-spanning registry lock or a
         # hidden retry queue. Aliases registered with the same target share it.
         self._read_admission_lock = threading.Lock()
@@ -120,6 +122,18 @@ class Hub:
         self._watcher = threading.Thread(target=self._watch_terminals, name="ceo-terminal-events", daemon=True)
         # Metadata reads never start the broker, SSH, a model, or a conversation.
         self._watcher.start()
+        # Construction is also used by read-only CLIs and maintenance helpers.
+        # Only the owning web service explicitly starts the reconnect worker.
+        self.auto_reconnect = AutoReconnect(self)
+        self._auto_reconnect_thread = None
+
+    def start_auto_reconnect(self):
+        with self._auto_config_lock:
+            if self.stopping or self._auto_reconnect_thread is not None:
+                return
+            self._auto_reconnect_thread = threading.Thread(
+                target=self.auto_reconnect.run, name="agent-captain-auto-reconnect", daemon=True)
+            self._auto_reconnect_thread.start()
 
     @staticmethod
     def agent_id(host, thread_id):
@@ -450,6 +464,8 @@ class Hub:
                                         reconcile_kind="live_display",
                                         reconcile_request_keys=[recovery["request_key"]])
             result["recovery"] = recovery
+        scheduler = getattr(self, "auto_reconnect", None)
+        result["auto_reconnect"] = scheduler.view(result) if scheduler else AutoReconnect.disabled_view()
         result["management"] = self._management(result)
         return result
 
@@ -1174,6 +1190,44 @@ class Hub:
             self.record_event("agent_updated", host=host, thread_id=thread_id, alias=result["alias"], pinned=result["pinned"], origin=origin)
             return result
 
+    def set_auto_reconnect(self, host, thread_id, enabled, expected_terminal_id,
+                           request_key, origin="ui", controller_id=None):
+        """Explicit per-generation opt-in; it never attaches or sends input."""
+        if type(enabled) is not bool or origin not in ("ui", "plugin"):
+            raise ValueError("自动重连需要明确的布尔设置和有效来源。")
+        if not isinstance(expected_terminal_id, str) or not re.fullmatch(r"ceohub-[a-f0-9]{16,48}", expected_terminal_id):
+            raise ValueError("请提供当前终端的精确身份。")
+        self._request_key(request_key)
+        if not request_key:
+            raise ValueError("自动重连设置必须提供稳定 request_key。")
+        # Do not acquire registry_lock: an in-flight network reconnect can hold
+        # it for minutes, while disabling future attempts must remain immediate.
+        with self._auto_config_lock:
+            agent = self.get_agent(host, thread_id, plugin=origin == "plugin")
+            if agent.get("terminal_id") != expected_terminal_id:
+                raise ValueError("终端已切换，请刷新后再设置自动重连。")
+            if controller_id is not None:
+                self._require_controller_scope(controller_id, host, thread_id)
+            if enabled and (not self.is_managed_worker(agent) or self.host(host)["transport"] != "ssh"):
+                raise ValueError("自动重连只支持未关闭的 SSH 工作终端。")
+            operation = "auto-reconnect-config:" + request_key
+            fingerprint = hashlib.sha256(json.dumps(
+                [host, thread_id, expected_terminal_id, enabled, origin, controller_id]).encode()).hexdigest()
+            previous = self.store.begin_operation(operation, fingerprint)
+            if previous is not None:
+                if previous.get("updated") is not True:
+                    raise ValueError("原设置请求未应用，请刷新后重新设置。")
+                return self.get_agent(host, thread_id)
+            try:
+                self.auto_reconnect.configure(host, thread_id, enabled, expected_terminal_id, request_key)
+            except Exception:
+                self.store.finish_operation(operation, {"updated": False})
+                raise
+            self.store.finish_operation(operation, {"updated": True, "terminal_id": expected_terminal_id})
+            self.record_event("agent_updated", host=host, thread_id=thread_id,
+                              auto_reconnect=enabled, origin=origin)
+            return self.get_agent(host, thread_id)
+
     def _probe_remote_terminal(self, host, terminal_id):
         if not isinstance(terminal_id, str) or not re.fullmatch(r"ceohub-[a-f0-9]{16,48}", terminal_id):
             return {"ok": False, "exists": False, "reason": "invalid_terminal_id"}
@@ -1518,6 +1572,7 @@ class Hub:
 
             # Fence before close so neither a stale browser nor an old queued
             # Captain prompt can be redirected to the replacement generation.
+            self.auto_reconnect.cancel(host, thread_id, agent["terminal_id"])
             self.store.remember(host, thread_id, agent["alias"], active=False, mode="closing")
             self.store.fence_terminal_reopen(host, thread_id, expected_terminal_id, request_key, RETRYABLE)
             self.record_event("terminal_reopen_started", host=host, thread_id=thread_id,
@@ -2040,6 +2095,7 @@ class Hub:
                 return cached
             # Persist the closing fence before talking to the broker. Stale UI
             # keyboard/resize requests cannot operate or reconnect this ID.
+            self.auto_reconnect.cancel(host, thread_id, terminal_id)
             self.store.remember(host, thread_id, agent["alias"], active=False, mode="closing")
             self.store.revoke_pending(host, thread_id, RETRYABLE)
             try:
@@ -2248,10 +2304,13 @@ class Hub:
             if controller_id is not None:
                 self._require_controller_scope(controller_id, host, thread_id)
             return result
-        if tool in ("update_agent", "reconnect_agent"):
+        if tool in ("update_agent", "reconnect_agent", "set_auto_reconnect"):
             if not arguments.get("request_key"):
                 raise ValueError("管理操作必须提供稳定 request_key。")
             key = self._controller_key(controller_id, arguments["request_key"]) if controller_id is not None else arguments["request_key"]
+            if tool == "set_auto_reconnect":
+                return self.set_auto_reconnect(host, thread_id, arguments.get("enabled"),
+                    arguments.get("expected_terminal_id"), key, origin="plugin", controller_id=controller_id)
             if tool == "update_agent":
                 return self.update_agent(host, thread_id, alias=arguments.get("alias"), pinned=arguments.get("pinned"),
                     origin="plugin", request_key=key, controller_id=controller_id)
@@ -2293,7 +2352,10 @@ class Hub:
         agents = self.attached_agents()
         connected = self.connected_hosts(agents)
         events = self.store.recent_events(kinds=MANAGEMENT_EVENTS) if int(after) == 0 else self.store.events(after, kinds=MANAGEMENT_EVENTS)
-        with self.registry_lock:
+        # A background SSH attach holds registry_lock across network I/O. The
+        # workbench only needs a metadata snapshot and must stay responsive.
+        # Host entries are replaced under this short lock, never edited in place.
+        with self._host_latency_lock:
             hosts = [(host, dict(config), dict(self.connections.get(host, {}))) for host, config in self.hosts.items()]
         return {"version": VERSION, "controller": "codex-plugin", "legacy_scope_shared": True,
                 "management_policy": "connected_workers", "worker_access": "automatic",
@@ -2308,6 +2370,9 @@ class Hub:
             return
         self.stopping = True
         self._stop.set()
+        self.auto_reconnect.stop()
+        if self._auto_reconnect_thread is not None:
+            self._auto_reconnect_thread.join(timeout=5)
         self._watcher.join(timeout=5)
         self.controllers.shutdown()
         with self.registry_lock:

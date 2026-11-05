@@ -58,12 +58,13 @@ class HistoryTransportTests(unittest.TestCase):
         self.assertEqual(self.terminals.writes, [])
 
     def test_original_pane_probe_has_bounded_slow_ssh_budget(self):
+        from agent_captain.transport.terminal_client import SSH_CONTROL_CONNECT_TIMEOUT, SSH_CONTROL_TIMEOUT
         probe = {"ok": True, "exists": False, "reason": "session_missing"}
         response = reply(stdout="CEO_HUB_PTY_RESULT=" + json.dumps(probe))
         with patch("agent_captain.core.terminal_hub.subprocess.run", return_value=response) as run:
             self.assertEqual(self.hub._probe_remote_terminal("remote", TERMINAL), probe)
-        self.assertIn("ConnectTimeout=30", run.call_args.args[0])
-        self.assertEqual(run.call_args.kwargs["timeout"], 45)
+        self.assertIn(f"ConnectTimeout={SSH_CONTROL_CONNECT_TIMEOUT}", run.call_args.args[0])
+        self.assertEqual(run.call_args.kwargs["timeout"], SSH_CONTROL_TIMEOUT)
         self.assertEqual(run.call_args.args[0][-2], "test-ssh-alias")
         self.assertEqual(run.call_args.args[0][-1], "python3 - probe --session " + TERMINAL)
         self.assertIn("def probe_existing_session", unpack_source(run.call_args.kwargs["input"]))

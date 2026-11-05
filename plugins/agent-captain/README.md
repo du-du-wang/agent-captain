@@ -35,6 +35,23 @@ automatically manageable; naming changes display metadata, not native identity.
 Inspect live evidence for the selected worker rather than treating the
 cached overview as a fresh connectivity check.
 
+Users can opt each open SSH worker into **Auto reconnect (every 10 minutes)**
+from its workbench card or detail view. The setting defaults to off and is saved
+by the Hub, so it remains effective when the webpage is closed. The Hub must
+keep running; sleep does not wake the computer or produce catch-up attempts.
+The backend only reattaches the exact original terminal. It never starts or
+resumes a model, replays a task, or restarts an external tunnel.
+
+At the user's explicit request, use `set_auto_reconnect` with the selected
+`agent_id`, `enabled`, the current `expected_terminal_id`, and a stable
+`request_key`. Inspect `auto_reconnect` in `get_agent` / `list_active_agents`
+for the next attempt and last result. Temporary failures confirmed before
+attachment may retry with the same key; uncertain outcomes, missing tmux and
+authentication/host-key problems pause for inspection. Turning the setting off
+stops future attempts. Closing or replacing a terminal retires its old schedule;
+the setting does not transfer to a new terminal generation. This is background
+display recovery, not an automatically running Captain conversation.
+
 `reopen_agent` is a separate **destructive, explicitly confirmed** operation,
 not a reconnect fallback. First inspect the selected worker with `get_agent`;
 send its exact `agent_id`, the confirmed `expected_terminal_id`, `confirmed: true`,
@@ -107,7 +124,7 @@ identity you intend to use, not several, to avoid duplicate tools.
 Review the generated commands before registration. A running MCP process and
 its discovered tool list do not hot-reload after source changes: reload that
 MCP connection or reopen the controlling chat and verify `tools/list` includes
-`update_agent`, `reconnect_agent` and `reopen_agent`, with server version `0.7.0`. Updating the
+`update_agent`, `reconnect_agent`, `set_auto_reconnect` and `reopen_agent`, with server version `0.7.0`. Updating the
 installed skill/manifest is separate from replacing a bridge file; local plugin
 cache loading may require an app reload or restart. Do not restart the terminal
 broker or a worker to refresh plugin tools.

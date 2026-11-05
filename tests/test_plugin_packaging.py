@@ -374,7 +374,7 @@ class PluginPackagingTests(unittest.TestCase):
         names = {tool["name"] for tool in responses[1]["result"]["tools"]}
         self.assertEqual(names, {"list_active_agents", "get_agent", "read_agent", "send_agent_message",
                                  "create_agent", "send_terminal_input", "poll_events", "get_delivery",
-                                 "update_agent", "reconnect_agent", "reopen_agent", "get_management_policy"})
+                                 "update_agent", "reconnect_agent", "set_auto_reconnect", "reopen_agent", "get_management_policy"})
         self.assertFalse((self.base / "deliberately-missing-service.json").exists())
         self.assertTrue(Path(server["args"][1]).is_file())
 
@@ -410,7 +410,8 @@ class PluginPackagingTests(unittest.TestCase):
         self.assertIn("reconnect_agent", names)
         self.assertIn("reopen_agent", names)
         self.assertIn("get_management_policy", names)
-        self.assertEqual(len(names), 12)
+        self.assertIn("set_auto_reconnect", names)
+        self.assertEqual(len(names), 13)
         self.assertFalse(missing.exists())
 
     def test_cli_generates_json_without_registering_or_installing(self):

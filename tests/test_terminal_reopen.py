@@ -436,7 +436,8 @@ class ReopenProbeTests(unittest.TestCase):
             client.write(OLD, "close", {})
             self.assertEqual(request.call_args.kwargs["timeout"], 20)
             client.write(OLD, "input", {"data": "fixture"})
-            self.assertEqual(request.call_args.kwargs["timeout"], 55)
+        from agent_captain.transport.terminal_client import FOREGROUND_RPC_TIMEOUT
+        self.assertEqual(request.call_args.kwargs["timeout"], FOREGROUND_RPC_TIMEOUT)
 
     def test_actual_close_helper_source_is_sent_but_only_probe_operation_invoked(self):
         with tempfile.TemporaryDirectory() as directory:

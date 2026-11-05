@@ -75,6 +75,10 @@ unrun checks, partial outputs, blockers and the next responsible action honestly
 
 On the user's behalf, update_agent can rename or pin a worker; names are display
 metadata, not identity. reconnect_agent only restores the original SSH display.
+Only at the user's explicit choice, set_auto_reconnect configures a persistent
+per-terminal background retry every ten minutes. It restores the same display,
+never creates/resumes models or replays tasks; uncertainty pauses for review.
+Do not substitute model-driven retry loops for this opt-in service setting.
 A missing terminal or external route failure is not permission to create a
 replacement, resume Codex, restart a shared tunnel or replay tasks. Keep the
 same request_key and reconcile uncertain results. Existing-worker access is

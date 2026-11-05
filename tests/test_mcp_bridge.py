@@ -123,10 +123,26 @@ class McpBridgeTests(unittest.TestCase):
         self.assertEqual(responses[0]["result"]["serverInfo"]["version"], mcp_bridge.VERSION)
         self.assertEqual(responses[2]["result"], {})
         names = {item["name"] for item in responses[1]["result"]["tools"]}
-        self.assertEqual(names, {"list_active_agents", "get_agent", "read_agent", "update_agent", "reconnect_agent", "reopen_agent", "send_agent_message", "send_terminal_input", "create_agent", "poll_events", "get_delivery", "get_management_policy"})
+        self.assertEqual(names, {"list_active_agents", "get_agent", "read_agent", "update_agent", "reconnect_agent", "set_auto_reconnect", "reopen_agent", "send_agent_message", "send_terminal_input", "create_agent", "poll_events", "get_delivery", "get_management_policy"})
         self.assertEqual(responses[0]["result"]["serverInfo"]["name"], "ceo-hub")
         self.assertEqual(responses[0]["result"]["serverInfo"]["version"], "0.7.0")
         self.assertNotIn("private-secret", process.stdout)
+
+    def test_auto_reconnect_setting_preserves_explicit_choice_and_exact_generation(self):
+        bridge = mcp_bridge.McpBridge()
+        self.initialize(bridge)
+        service = self.service(result={"auto_reconnect": {"enabled": True, "interval_seconds": 600}})
+        arguments = {"agent_id": "remote::worker", "enabled": True,
+                     "expected_terminal_id": "ceohub-0123456789abcdef", "request_key": "auto-setting-1"}
+        result = self.call(bridge, "set_auto_reconnect", arguments)["result"]
+        self.assertFalse(result["isError"])
+        self.assertEqual(service.calls[0]["body"], {"tool": "set_auto_reconnect", "arguments": arguments})
+        for changes in ({"enabled": 1}, {"enabled": "true"}, {"expected_terminal_id": ""},
+                        {"controller_id": "forged"}, {"interval_seconds": 1}, {"command": "codex"}):
+            with self.subTest(changes=changes):
+                self.assertTrue(self.call(bridge, "set_auto_reconnect", {**arguments, **changes})["result"]["isError"])
+        for missing in ("enabled", "expected_terminal_id", "request_key"):
+            self.assertTrue(self.call(bridge, "set_auto_reconnect", {k: v for k, v in arguments.items() if k != missing})["result"]["isError"])
 
     def test_negotiation_and_required_initialization(self):
         bridge = mcp_bridge.McpBridge()

@@ -19,6 +19,7 @@ if (workbenchSaved.active) { workbenchSaved.active = false; try { window.localSt
 let restoreAgentKey = agentKeyFromHash() || (typeof workbenchSaved.agent === 'string' ? workbenchSaved.agent : null), renameTarget = null;
 const renameDrafts = new Map();
 const reconnectOperations = new Map(Array.isArray(workbenchSaved.reconnect) ? workbenchSaved.reconnect.filter(entry => Array.isArray(entry) && typeof entry[0] === 'string' && typeof entry[1]?.requestKey === 'string') : []);
+const autoReconnectChanges = new Map();
 const terminalResizeFlights = new Map();
 const agentRecoveryNotices = new Map();
 const pendingCreateStorageKey = 'pron-hub.pending-terminal-create.v1';
@@ -93,6 +94,71 @@ function updateAgentLocation() {
   window.history.replaceState(null, '', (window.location.pathname || '/') + (window.location.search || '') + (params.toString() ? '#' + params : ''));
 }
 function registeredAgent(key) { return state.agents.find(agent => agentKey(agent) === key || agent.agent_id === key || `${agent.host}::${agent.thread_id}` === key); }
+function canAutoReconnect(agent) {
+  return isWorkerRecord(agent) && agent?.mode === 'terminal' && !!agent.terminal_id && !isClosedAgent(agent) && !isClosingAgent(agent)
+    && state.hosts.some(host => host.id === agent.host && host.transport === 'ssh');
+}
+function autoReconnectView(agent) {
+  const policy = agent?.auto_reconnect;
+  if (policy?.enabled !== true) return {text: '已关闭 · 断线后可手动重连', tone: 'off'};
+  if (policy.status === 'reconnecting') return {text: '后台正在重连原终端…', tone: 'reconnecting'};
+  if (policy.status === 'needs_attention') return {text: `自动重连需处理${policy.last_result?.message ? ' · ' + policy.last_result.message : ' · 请检查原会话或登录状态'}`, tone: 'attention'};
+  if (policy.status === 'connected') return {text: '自动重连已开启 · 显示已连接', tone: 'connected'};
+  const next = timestamp(policy.next_attempt_at);
+  return {text: next ? `下次尝试 ${next.text}（本地时间）` : '自动重连已开启 · 断线后每 10 分钟尝试', tone: 'waiting'};
+}
+function autoReconnectCheckbox(agent) {
+  const label = node('label', null, 'auto-reconnect-option'), input = node('input', null, 'auto-reconnect-checkbox');
+  const terminalId = agent.terminal_id;
+  input.type = 'checkbox'; input.checked = agent.auto_reconnect?.enabled === true;
+  input.disabled = autoReconnectChanges.has(agentKey(agent)) || !!pendingReopen(agent);
+  input.setAttribute('aria-label', `自动重连 ${workerDisplayName(agent)}`);
+  input.onchange = () => action(input, () => setAgentAutoReconnect(agent, input.checked, terminalId));
+  label.append(input, node('span', '自动重连（每 10 分钟）'));
+  return label;
+}
+function renderAutoReconnectDetail(agent) {
+  const panel = $('#agent-auto-reconnect'), eligible = canAutoReconnect(agent);
+  panel.hidden = !eligible;
+  if (!eligible) return;
+  const input = $('#agent-auto-reconnect-enabled'), view = autoReconnectView(agent);
+  input.checked = agent.auto_reconnect?.enabled === true;
+  input.disabled = autoReconnectChanges.has(agentKey(agent)) || !!pendingReopen(agent);
+  // Bind the selected generation rather than resolving a different terminal
+  // when an old checkbox's event completes after a reopen or selection change.
+  const terminalId = agent.terminal_id;
+  input.onchange = () => action(input, () => setAgentAutoReconnect(agent, input.checked, terminalId));
+  $('#agent-auto-reconnect-status').textContent = view.text;
+  $('#agent-auto-reconnect-status').className = `auto-reconnect-status ${view.tone}`;
+}
+async function setAgentAutoReconnect(agent, enabled, expectedTerminalId = agent.terminal_id) {
+  const key = agentKey(agent), selected = registeredAgent(key);
+  if (!canAutoReconnect(selected) || selected.terminal_id !== expectedTerminalId) {
+    renderAgents(true); renderDetail();
+    throw new Error('终端已切换或关闭，请核对当前终端后再设置自动重连。');
+  }
+  if (autoReconnectChanges.has(key)) return;
+  const operation = {terminalId: expectedTerminalId, requestKey: crypto.randomUUID()};
+  autoReconnectChanges.set(key, operation); renderAgents(true); renderDetail();
+  try {
+    const result = await request('/api/agents/auto-reconnect', {host: selected.host, thread_id: selected.thread_id,
+      enabled, expected_terminal_id: expectedTerminalId, request_key: operation.requestKey});
+    const updated = result.agent || result, current = registeredAgent(key);
+    if (!current || current.terminal_id !== expectedTerminalId || updated.host !== selected.host
+        || updated.thread_id !== selected.thread_id || updated.terminal_id !== expectedTerminalId) {
+      throw new Error('终端在保存期间已切换，请核对新终端的自动重连设置。');
+    }
+    if (typeof updated.auto_reconnect?.enabled !== 'boolean') throw new Error('后台未返回自动重连设置，请刷新页面核对。');
+    // Only apply this setting. A configuration response cannot replace a live
+    // display generation, input state or manual reconnect receipt.
+    current.auto_reconnect = updated.auto_reconnect;
+    await refresh(true);
+    toast(enabled ? '自动重连已开启：后台每 10 分钟接回断线的原终端，关闭网页后仍生效。' : '自动重连已关闭。');
+  } finally {
+    if (autoReconnectChanges.get(key) === operation) autoReconnectChanges.delete(key);
+    renderAgents(true); renderDetail();
+  }
+}
 function agentNeedsAttention(agent) { return !isClosedAgent(agent) && (!!agent.management?.needs_attention || isClosingAgent(agent) || displayDisconnected(agent) || !!agent.blocked_reason || !!agent.error || ['setup_menu', 'approval', 'login', 'error', 'unknown'].includes(agent.state || agent.status) || !isTerminal(agent)); }
 function filteredAgents() {
   const query = agentFilters.query.trim().toLocaleLowerCase();
@@ -216,6 +282,9 @@ function renderAgents(force = false) {
     const status = terminal ? isClosedAgent(agent) || isClosingAgent(agent) ? statusLabels[agent.status || agent.state] || '终端已暂停' : displayDisconnected(agent) ? disconnectedLabel : agent.command ? `显示连接已连接 · ${agent.command}` : '显示连接已连接' : '尚未连接终端';
     open.append(node('strong', workerDisplayName(agent)), node('span', status, 'agent-meta'), node('span', agent.cwd || '目录未记录', 'agent-directory'), node('span', shortId(agent.thread_id), 'agent-id')); card.append(open);
     if (agent.management?.label) card.append(node('span', agent.management.label, 'agent-management-label' + (agentNeedsAttention(agent) ? ' attention' : '')));
+    if (canAutoReconnect(agent) && agent.auto_reconnect?.enabled === true) {
+      const view = autoReconnectView(agent); card.append(node('span', view.text, `agent-auto-reconnect-status ${view.tone}`));
+    }
     const quick = node('div', null, 'agent-quick-actions');
     quick.append(button(terminal ? '打开终端' : '查看记录', 'subtle', async () => selectAgent(agent)));
     const rename = button(agent.alias ? '重命名' : '命名', 'subtle agent-rename-button', async () => openAgentRename(agent)); rename.setAttribute('aria-label', `${agent.alias ? '重命名' : '命名'} ${workerDisplayName(agent)}`); quick.append(rename);
@@ -224,6 +293,7 @@ function renderAgents(force = false) {
     card.append(quick);
     const more = node('details', null, 'agent-more'), summary = node('summary', '更多'); more.append(summary);
     const moreActions = node('div', null, 'agent-more-actions'); moreActions.append(button('复制直达链接', 'text-button', async () => copyAgentLink(agent)));
+    if (canAutoReconnect(agent)) moreActions.append(autoReconnectCheckbox(agent));
     if (canReopenAgent(agent) || canInspectPendingReopen(agent)) moreActions.append(button(canInspectPendingReopen(agent) ? '核对原重开结果…' : '重开终端…', 'text-button agent-reopen-link', async () => openReopenTerminal(agent)));
     if (terminal && !isClosedAgent(agent) && !isClosingAgent(agent)) moreActions.append(button('关闭终端…', 'text-button agent-close-link', async () => { await selectAgent(agent); if (selectedAgent === agentKey(agent)) openCloseTerminal(); })); more.append(moreActions); card.append(more);
     if (renameTarget?.key === agentKey(agent) && renameTarget.mode !== 'dialog') {
@@ -278,6 +348,7 @@ function renderCandidates() {
 }
 function renderDetail() {
   const agent = currentAgent(); renderAgentRecoveryNotice(agent); $('#detail-empty').hidden = !!agent; $('#agent-detail').hidden = !agent; if (!agent) return;
+  renderAutoReconnectDetail(agent);
   if (outputView?.key === selectedAgent && outputView.terminalId !== agent.terminal_id) resetConversationOutput();
   const terminal = isTerminal(agent), host = state.hosts.find(item => item.id === agent.host);
   $('#detail-host').textContent = host?.label || agent.host; $('#detail-name').textContent = workerDisplayName(agent);

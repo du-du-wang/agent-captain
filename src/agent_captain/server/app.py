@@ -241,6 +241,9 @@ def create_server(hub, port=8766, token=None):
                         pinned=body.get("pinned"), request_key=body.get("request_key")))
                 elif self.path == "/api/agents/reconnect":
                     self.respond(200, hub.reconnect_agent(body["host"], body["thread_id"], request_key=body.get("request_key")))
+                elif self.path == "/api/agents/auto-reconnect":
+                    self.respond(200, hub.set_auto_reconnect(body["host"], body["thread_id"], body.get("enabled"),
+                        body.get("expected_terminal_id"), body.get("request_key")))
                 elif self.path == "/api/agents/reconcile-reconnect":
                     self.respond(200, hub.reconcile_reconnect(body["host"], body["thread_id"], body.get("request_key"), confirm=body.get("confirm") is True))
                 elif self.path == "/api/agents/reconcile-original-worker":
@@ -299,6 +302,7 @@ def serve(port=8766):
     temporary.chmod(0o600)
     temporary.replace(descriptor)
     sync_connection_aliases(payload)
+    hub.start_auto_reconnect()
     atexit.register(hub.close)
     print(f"AgentCaptain connection service {VERSION}: {server.origin}", flush=True)
     print("Captain 是当前 Codex 管理对话；本服务不另运行管理模型、不自动扫描对话。", flush=True)
