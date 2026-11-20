@@ -747,7 +747,8 @@ class ControllerTests(unittest.TestCase):
         path = Path(c["workspace"]) / "AGENTS.md"
         self.assertEqual(path.read_text(encoding="utf-8"), MANAGER_ROLE)
         self.assertEqual(ROLE, MANAGER_ROLE)
-        self.assertIn("rather than investigating its project through direct SSH", ROLE)
+        self.assertIn("Do project work yourself only when the user asks you to", ROLE)
+        self.assertIn("Write in English", ROLE)
         self.assertIn("Initialization only calls get_controller_context", ROLE)
         record = self.hub.store.setting("controller-policy-file:" + c["id"])
         self.assertEqual(record, {"version": POLICY_VERSION,

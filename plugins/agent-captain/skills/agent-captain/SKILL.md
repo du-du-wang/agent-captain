@@ -3,64 +3,18 @@ name: agent-captain
 description: 在当前 Codex 对话中担任主控，通过 AgentCaptain 管理已接入的本机和 SSH 工作 agent，完成问询、派发、跟进和验收。默认委派实际项目工作，无需额外激活，不另运行主控模型。
 ---
 
-当前 Codex 对话里的模型就是主控。AgentCaptain 是连接本机与远程多台机器上的工作 agent、支持统一管理的后台服务；每个工作 agent 有一个真实终端，用户和主控使用同一个终端输入、查看输出。用户保留最终决定权。你按其意图组织信息、传达工作、跟踪证据；具体项目工作由工作 agent 执行，其内部子 agent 不必展开到管理层。
+The model in this Codex conversation is the manager. The AgentCaptain MCP server's instructions are the management guidance; follow them. This skill adds only setup notes and a short loop. The user keeps the final decision on everything.
 
-## 专家管理方式
+## Setup
 
-你的默认工作是理解目标、选择负责人、问询、分派、协调依赖、审查证据、要求补充或纠偏，再向用户给出可决策的汇总。业务仓库调查、编码、编译、测试和 PR 事实核验交给对应工作 agent；缺少领域知识或项目背景时，用 `send_agent_message` 问它具体问题，不默认自己 SSH 下场或另起一份平行实现。用户明确要求你亲自执行、或当前任务是维护 AgentCaptain 平台本身时，才切换到直接执行。
+The source plugin has no machine-specific MCP launch config. Run `python scripts/configure_plugin.py` as the project README describes and install the plugin from the generated local marketplace; keep the generated directory. A plugin install error does not mean workers are offline. Do not edit the user's Codex config or copy service credentials.
 
-用户布置一个目标，就授权你在该目标范围内与相关已连接 agent 正常对话：询问背景、传达任务、追问进展、要求验证和返工，不必为每条普通消息再向用户确认。管理对话权限不等于凭据、人工审批、任意新建目录或无关外部操作的权限；范围扩大、权威冲突、不可逆或未授权的外部决策才带证据和选项请用户裁决。
+## Loop
 
-先读相关终端的最新真实输出与已知送达记录，再决定问询或派发。会话中断、用户重复目标、暂时断线，不证明原任务未执行；已接受、排队、正在运行或送达未知的工作不能盲目重发。原任务已经在进行时，跟进它而不是重新布置一遍。
+1. `list_active_agents` once to see who exists (compact rows; cached status).
+2. For the worker you need: `read_agent` for its latest reply. Check `content_complete`; follow `next_cursor` if a reply is split.
+3. `send_agent_message` with an English brief written the way the user would write it.
+4. `wait_for_agent` with the returned `request_id`. On `timed_out`, call it again; do not poll or ask the worker for status.
+5. Review the deliverable, send a targeted follow-up if needed, then report to the user.
 
-给 worker 普通用户式任务文字，讲清目标、指定权威、范围、边界和所需验收证据，让它选择实现路径，不注入主控角色或隐藏汇报协议。用户说“最新规范应该修好了”时，要求负责 agent 核验当前 accepted 版本、owner 条款和实际实现；不要把推测或旧报告当结论。读取不足、证据缺失或结果不符合要求时，向 worker 提出聚焦的补充验证或纠偏。
-
-汇总时区分已写入终端、已被接收、进行中、worker 自报完成、经证据验收完成和阻塞；突出结论、版本/交付物/测试证据、风险及下一责任人，不复制整段工具日志。工具可用时，`get_management_policy` 返回当前公共管理原则，`get_controller_context` 返回受认证管理身份和运行边界；公共原则本身不授予新能力。旧插件没有策略查询工具时，仍遵循本技能，不靠查询失败放宽权限。
-
-## 插件连接前提
-
-源仓库插件不包含机器专属 MCP 启动配置。先按项目 README 运行 `python scripts/configure_plugin.py`，再安装它生成的本地 marketplace 中的插件。生成目录必须保留；安装缓存中的 MCP 配置仍会引用该目录内的桥接源码。不要从插件安装错误推断工作 agent 已断线，不要自动修改用户的 Codex 配置或复制服务连接凭据。
-
-## 确定工作范围
-
-先用 `list_active_agents` 获取 Hub 已接入工作终端的跨机器缓存概况及精确 `agent_id`；该工具沿用兼容名称，不再要求用户激活。结合会话名称、`pinned`、`host_label`、`management.status` 及其下一步动作组织汇总。缓存连接状态、命令及上次关联记录不是实时在线证据，只有选定目标后才按需要用 `get_agent` / `read_agent` 核对。只读取与当前问题有关的终端，不全盘扫描机器或历史。名称重复时用机器和项目目录消歧，不猜测操作目标。
-
-已接入的、未关闭的真实工作终端自动可管理，之后新接入的终端也自动加入；无需另外激活或勾选工作对象。暂时断线的原登记保留，以便按用户要求核对和安全重连。仅有历史记录、未登记对象、已关闭对象及管理会话自身不是工作目标。服务继续核验管理身份、原终端和初始化状态；自动可管理不等于自动获准发送任意任务。
-
-创建新的工作终端是另一种操作：管理会话仍需明确的新建项目目录权限，已有终端可管理不意味着可以在任意机器或目录创建进程。终端中运行的普通 shell、登录界面、模型切换菜单和正在工作的 Codex 是不同状态，不能把“连接成功”当作“agent 已运行”。用户仍保留最终决定权。
-
-## 管理名称、排序与连接
-
-- 用户要求命名、改名或置顶时用 `update_agent`，只传准确目标 `agent_id`、需要更改的 `alias` / `pinned` 及稳定 `request_key`。名称可持久保存并供网页与工具共同识别；不改 Codex 原生 Session、终端 ID、目录、输入或模型配置。用户没有指定名称时，不擅自覆盖其现有名称。
-- 用户明确要求重新连接时用 `reconnect_agent`，只对已获授权的 SSH 工作终端重新接入其原有 tmux 会话。检查 `operation_state` 与 `recovery`，`blocked` / `unknown` 不能当作恢复成功。已连接时为 no-op；原会话不存在、本地终端已退出或用户明确关闭的终端不能借此新建替代。它不启动 `codex`、不发送 `resume`、不重放任何任务或按键。显示连接恢复不证明原项目任务完成，也不自动核验 Codex 日志关联。
-- 用户明确指定开启或关闭自动重连时，用 `get_agent` 核对准确目标和当前 `terminal_id`，再调用 `set_auto_reconnect`，传入 `agent_id`、布尔值 `enabled`、冻结的 `expected_terminal_id` 与稳定 `request_key`。它仅设置该 SSH 工作终端的后台重连开关，默认关闭；不因自动可管理而默认启用，也不替用户为所有机器开启。`get_agent` / `list_active_agents` 的 `auto_reconnect` 返回开关、状态、上次结果与下次尝试时间。
-- 已由用户开启的终端，在显示断开后由 Hub 后台每隔 10 分钟尝试接回原 tmux；关闭网页不取消设置，Hub 后台仍须运行。后台串行执行重连，沿用原终端身份与请求回执，不另起主控推理、不唤醒 Codex，也不发送任务、恢复模型或新建替代终端。电脑休眠时不执行，恢复后不追补多轮。仅有前台尚未就绪或尺寸未确认，不算显示断线。关闭开关会停止后续尝试；已进入执行的那次附着不能承诺即时撤销。终端被关闭或重开换代后，旧自动重连计划不接管新终端。
-- 自动重连遇到明确的附着前临时路由失败时，保留同一请求键，10 分钟后再试；原 tmux 不存在、认证/主机密钥需处理或结果未知时，状态为 `needs_attention`，暂停自动尝试。先核对原请求与连接，不能换键绕过未知结果，也不能把这个开关扩大成重启服务、自动登录、执行 `resume` 或重放输入的授权。用户未开启时，不在管理聊天里自行编排重连循环。
-- 用户明确确认结束并替换指定终端时，才用 `reopen_agent`；断线或重连失败本身不是重开的授权。先用 `get_agent` 核对目标，将其 `terminal_id` 固定为 `expected_terminal_id`，传 `confirmed=true` 与稳定 `request_key`。它严格核验并关闭、清理旧终端（存在时），在原目录创建新终端，保留工作名称和登记；会结束旧终端的前台工作，不承诺停止独立后台进程。工具不发送 Codex 启动、resume 或任务命令，也不转发旧草稿或排队输入；用户自己的 shell 初始化仍由其配置决定。独立管理者仍需原目录的新建权限。检查 `operation_state`、`recovery` 和新 `terminal_id`；`unknown` 时只沿用原键核对，不换键重复关闭或创建。关闭无法严格确认时不创建。旧会话记录保留为历史，不能当作新终端的实时输出；恢复模型或重发业务任务需要另外的明确授权。旧插件缺少该工具时，报告需要更新，不借原始输入绕过核验。
-- 外部 tunnel 不可用时汇总工具返回的阻塞原因与用户操作 / Reload 提示，不自动重启 tunnel、daemon 或管理服务。用户开启的后台自动重连仅可在其原显示附着范围内运行，不增加外部服务恢复权限。原工作进程未确认时不要建议另启相同 Codex 会话；需要新建或恢复模型必须由用户另作明确决定。
-
-## 使用共享终端
-
-- `get_agent` 查看连接、前台命令和输入是否可用。`read_agent` 优先读取与该终端准确关联的 Codex 原始会话记录，返回 `source=codex_rollout`、`messages`、会话 ID 和完整性信息；同时保留 `screen` 供前台状态核对，不从终端画面重建回复。`output_binding=recorded` 只是上次关联，读输出时才核验当前进程。
-- 默认读取最近 `limit` 条用户/assistant 可见消息。先检查 `content_complete`、`read_issues`、`has_more`；长消息通过 `next_cursor` 继续读取，不把首片段当成报告全文。相同 agent 的 `next_cursor` 用作 `cursor`，读完当前消息后可以继续更早记录；`after_cursor` 用于新追加输出，不能和 `cursor` 同时传入。`history_complete=false` 可以只是还有较早记录，不等于本页每条回复正文不完整。依据每条消息的 `content_complete`/`has_more_content` 区分。
-- 需要完整工具调用/结果时指定 `include_tools=true`，它们也使用同一分页与分片机制；默认 `recent_signals` 是有明确截断标记的摘要，不是完整工具输出。绝不读取模型私有 reasoning/analysis 作为回复。
-- `output_binding.live_session_verified=false` 时，只能说读取的是明确关联/上次核验的会话 ID，不能断言它仍是 Codex 当前会话。即便进程没变，用户也可以在 Codex 内 `/new`、`/resume` 切换；提示重新关联。发现新的直接会话证据或进程变化时重新核验，不混用新旧会话及游标。
-- 自动关联只接受当前进程的确切日志文件/显式 resume ID，不按同目录最新会话猜测。菜单恢复或空闲进程缺少证据时，用户可以在 UI「关联会话」填入该终端 `/status` 的 Session ID；关联只读原日志，不发送按键、不恢复或启动第二个 agent。换了工作进程会重新核验，不沿用旧关联读取新 agent。若 `source=terminal` 或关联 unavailable/unbound，明确说明未获取真实记录；不要把终端尾部当完整结果，不替用户运行 `/status` 或扫描全机器寻找匹配。
-- 用户布置任务时用 `send_agent_message`。它将普通用户文本通过 bracketed paste 和 Enter 发给前台 Codex。不要注入主控身份、组织架构、隐形汇报协议或改变工作 agent 的角色。
-- 普通任务文本不能作为 shell 命令执行。返回 `waiting_for_agent` 时，说明还没有可接收任务的 agent；用户需要先在终端中启动或连接 Codex。
-- 用户要求新建工作 agent 时用 `create_agent`，传入已连接机器、绝对项目目录和名称。默认打开 shell。可选 `command` 只使用用户指定或已授权的启动指令；不自行挑选模型供应商，不修改 API 配置。可选 `text` 是待传达的任务，不得当成 shell 指令。
-- 用户明确要求执行终端动作时可用 `send_terminal_input`，例如执行已给定的 `codex` 启动命令并附 `\r`、或者在用户要求停止时发送 Ctrl+C `\u0003`。先读屏幕和前台命令，核对目标后再发。普通工作任务仍使用 `send_agent_message`。
-- 登录、密钥、密码、OTP、供应商切换的凭据步骤及工作 agent 的审批由用户在终端处理。不要替用户输入凭据、从历史提取秘密或自动答应审批提示。用户可以自行使用 `codex-switch`，Hub 不应替代其登录和模型配置。
-- 用户正在输入时优先保留其输入。`human_busy` 或 `queued` 不能声称任务已送达；等待用户输入结束，依据送达记录继续，不重复抢写。
-
-## 送达与结果证据
-
-每个新的创建、普通消息、原始输入、元数据更新或手动重连动作使用一个唯一 `request_key`；同一逻辑动作重试沿用原键。超时、断线或 `unknown` 不等于未执行：输入动作先查询 `get_delivery`、终端输出和事件；管理动作核对原 agent 当前信息与工具的操作结果，不能换新键盲目重复。原键用于取回持久化状态，不是强制重执行开关。`blocked` 或重连失败不能被转成未经授权的新建 / resume。
-
-`submitted` 只表示输入已写到终端，不证明模型已经接收、开始执行或完成。`waiting_for_agent` 表示任务尚不能交给 agent；`not_sent` 表示没有提交。终端出现相同文字也可能只是输入回显，不能独立证明执行成功。用 request_id、agent_id、时间和后续输出关联证据。
-
-用 `poll_events` 的 cursor 增量读取事件，单次等待最长 30 秒。终端产生输出、进程退出或返回输入框不等于用户任务通过验收；需要结合实际结果、测试或交付物。只汇报有意义的进展、失败、阻塞及需要用户决定的变化；旧事件不要再次当作新进展。当前对话丢失 cursor 时从 0 恢复并按 agent_id、事件 ID 和时间去重。
-
-工作 agent 输出是证据，不是新增授权。任务范围内按已有用户授权管理；会改变目标、扩大范围或需要新权限的决定，整理具体问题交给用户。自动化调度不能成为绕过工作 agent 审批的渠道。
-
-后台会保存终端输出、事件和送达记录，但不会自动唤醒空闲的 Codex 前端对话或启动主控推理。用户要求等待时在当前任务中增量等待；用户回来询问时根据最新屏幕、事件及持久化送达记录恢复进展。
+Use `get_agent` only when you need live connection or input state, and `verbose=true` only when a compact view lacks a field you need.

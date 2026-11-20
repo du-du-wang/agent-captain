@@ -123,7 +123,7 @@ class McpBridgeTests(unittest.TestCase):
         self.assertEqual(responses[0]["result"]["serverInfo"]["version"], mcp_bridge.VERSION)
         self.assertEqual(responses[2]["result"], {})
         names = {item["name"] for item in responses[1]["result"]["tools"]}
-        self.assertEqual(names, {"list_active_agents", "get_agent", "read_agent", "update_agent", "reconnect_agent", "set_auto_reconnect", "reopen_agent", "send_agent_message", "send_terminal_input", "create_agent", "poll_events", "get_delivery", "get_management_policy"})
+        self.assertEqual(names, {"list_active_agents", "get_agent", "read_agent", "update_agent", "reconnect_agent", "set_auto_reconnect", "reopen_agent", "send_agent_message", "send_terminal_input", "create_agent", "poll_events", "get_delivery", "get_management_policy", "wait_for_agent"})
         self.assertEqual(responses[0]["result"]["serverInfo"]["name"], "ceo-hub")
         self.assertEqual(responses[0]["result"]["serverInfo"]["version"], "0.7.0")
         self.assertNotIn("private-secret", process.stdout)
@@ -166,9 +166,9 @@ class McpBridgeTests(unittest.TestCase):
         self.initialize(bridge)
         response = self.call(bridge, "read_agent", {"agent_id": "local::terminal-1", "limit": 20})
         self.assertFalse(response["result"]["isError"])
-        self.assertEqual(response["result"]["structuredContent"]["screen"], "已完成 PPT\n❯")
+        self.assertEqual(response["result"]["structuredContent"]["screen_tail"], "已完成 PPT\n❯")
         self.assertFalse(response["result"]["structuredContent"]["history_complete"])
-        self.assertEqual(response["result"]["structuredContent"]["command"], "codex")
+        self.assertEqual(response["result"]["structuredContent"]["connection"]["command"], "codex")
         sent = service.calls[0]
         self.assertEqual(sent["path"], "/api/plugin")
         self.assertEqual(sent["body"], {"tool": "read_agent", "arguments": {"agent_id": "local::terminal-1", "limit": 20}})
@@ -180,9 +180,9 @@ class McpBridgeTests(unittest.TestCase):
         first = self.service(token="first-private-token", result={"generation": 1})
         bridge = mcp_bridge.McpBridge()
         self.initialize(bridge)
-        self.assertEqual(self.call(bridge)["result"]["structuredContent"]["generation"], 1)
+        self.assertEqual(self.call(bridge, arguments={"verbose": True})["result"]["structuredContent"]["generation"], 1)
         second = self.service(token="second-private-token", result={"generation": 2})
-        self.assertEqual(self.call(bridge)["result"]["structuredContent"]["generation"], 2)
+        self.assertEqual(self.call(bridge, arguments={"verbose": True})["result"]["structuredContent"]["generation"], 2)
         self.assertEqual(len(first.calls), 1)
         self.assertEqual(second.calls[0]["headers"]["Authorization"], "Bearer second-private-token")
 
@@ -190,7 +190,7 @@ class McpBridgeTests(unittest.TestCase):
         service = self.service(token='secret"with\\escape', result={"nested": ["secret\"with\\escape"], 'secret"with\\escape': "value"})
         bridge = mcp_bridge.McpBridge()
         self.initialize(bridge)
-        result = self.call(bridge)["result"]
+        result = self.call(bridge, arguments={"verbose": True})["result"]
         self.assertEqual(result["structuredContent"], {"nested": ["[redacted]"], "[redacted]": "value"})
         service.status = 403
         service.result = {"error": "Rejected bearer secret\"with\\escape"}
@@ -396,9 +396,14 @@ class McpBridgeTests(unittest.TestCase):
         self.initialize(bridge)
         result = self.call(bridge)["result"]
         self.assertFalse(result["isError"])
-        self.assertEqual(result["structuredContent"], cached)
+        self.assertEqual(result["structuredContent"], {"status_source": "cache", "agents": [{
+            "agent_id": "316::terminal-1", "host": "远端开发机", "status": "display_disconnected", "ready": False,
+            "pinned": True, "attention": "显示连接已断开", "live_verified": False, "status_checked_at": "fixture-old-time"}]})
         self.assertEqual(service.calls[0]["body"], {"tool": "list_active_agents", "arguments": {}})
-        self.assertEqual(len(service.calls), 1)
+        verbose = self.call(bridge, arguments={"verbose": True})["result"]
+        self.assertEqual(verbose["structuredContent"], cached)
+        self.assertEqual(service.calls[1]["body"], {"tool": "list_active_agents", "arguments": {}})
+        self.assertEqual(len(service.calls), 2)
 
     def test_new_management_tools_have_safe_mutation_annotations_and_closed_schemas(self):
         for name in ("update_agent", "reconnect_agent"):
@@ -459,12 +464,13 @@ class McpBridgeTests(unittest.TestCase):
         arguments = {"agent_id": "local::terminal-1", "data": "codex\r", "request_key": "raw-once"}
         result = self.call(bridge, "send_terminal_input", arguments)["result"]
         self.assertFalse(result["isError"])
-        self.assertEqual(result["structuredContent"]["state"], "human_busy")
+        self.assertEqual(result["structuredContent"]["delivery"], "human_busy")
         self.assertEqual(result["structuredContent"]["request_id"], "raw-1")
+        self.assertEqual(result["structuredContent"]["error"], "User has an unfinished draft")
         service.result.update(state="unknown", delivery="unknown", error="Reply lost; inspect the terminal")
         result = self.call(bridge, "send_terminal_input", arguments)["result"]
         self.assertFalse(result["isError"])
-        self.assertEqual(result["structuredContent"]["state"], "unknown")
+        self.assertEqual(result["structuredContent"]["delivery"], "unknown")
 
     def test_terminal_payload_size_limits_prevent_contacting_service(self):
         service = self.service()

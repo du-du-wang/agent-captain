@@ -56,10 +56,11 @@ class PluginPackagingTests(unittest.TestCase):
         self.assertEqual(catalog["plugins"][0]["source"]["path"], "./plugins/agent-captain")
         skill = (self.source_plugin / "skills" / "agent-captain" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("name: agent-captain", skill)
-        self.assertIn("当前 Codex 对话里的模型就是主控", skill)
+        self.assertIn("The model in this Codex conversation is the manager.", skill)
+        self.assertIn("wait_for_agent", skill)
         self.assertNotIn("\u961f\u957f", skill)
         self.assertNotIn("\u961f\u957f", json.dumps(manifest, ensure_ascii=False))
-        self.assertIn("用户保留最终决定权", skill)
+        self.assertIn("The user keeps the final decision", skill)
         self.assertIn("content_complete", skill)
 
     def test_generated_command_uses_running_python_and_retained_bridge(self):
@@ -216,7 +217,7 @@ class PluginPackagingTests(unittest.TestCase):
         self.assertEqual(manifest["interface"]["displayName"], "AgentCaptain")
         skill = (plugin / "skills" / "pron-hub" / "SKILL.md").read_text(encoding="utf-8")
         self.assertTrue(skill.startswith("---\nname: pron-hub\n"))
-        self.assertIn("当前 Codex 对话里的模型就是主控", skill)
+        self.assertIn("The model in this Codex conversation is the manager.", skill)
         self.assertNotIn("\u961f\u957f", skill)
         self.assertNotIn("PRON Hub", skill)
         self.assertNotIn("CEO", skill)
@@ -374,7 +375,7 @@ class PluginPackagingTests(unittest.TestCase):
         names = {tool["name"] for tool in responses[1]["result"]["tools"]}
         self.assertEqual(names, {"list_active_agents", "get_agent", "read_agent", "send_agent_message",
                                  "create_agent", "send_terminal_input", "poll_events", "get_delivery",
-                                 "update_agent", "reconnect_agent", "set_auto_reconnect", "reopen_agent", "get_management_policy"})
+                                 "update_agent", "reconnect_agent", "set_auto_reconnect", "reopen_agent", "get_management_policy", "wait_for_agent"})
         self.assertFalse((self.base / "deliberately-missing-service.json").exists())
         self.assertTrue(Path(server["args"][1]).is_file())
 
@@ -411,7 +412,7 @@ class PluginPackagingTests(unittest.TestCase):
         self.assertIn("reopen_agent", names)
         self.assertIn("get_management_policy", names)
         self.assertIn("set_auto_reconnect", names)
-        self.assertEqual(len(names), 13)
+        self.assertEqual(len(names), 14)
         self.assertFalse(missing.exists())
 
     def test_cli_generates_json_without_registering_or_installing(self):

@@ -233,7 +233,10 @@ The management terminal is separate from worker terminals. **Hide display** or c
 | `send_terminal_input` | Send explicitly authorized raw terminal input |
 | `create_agent` | Open a worker terminal; Hub-created managers are limited to their explicitly configured connected-machine/project-directory roots. The result automatically joins registered work |
 | `get_delivery` | Reconcile a durable submission |
-| `poll_events` | Read incremental registered-worker events |
+| `poll_events` | Read incremental registered-worker events; terminal output is summarized per agent |
+| `wait_for_agent` | Block until a worker's turn ends (optionally the turn for a given `request_id`) and return its final reply; read-only, replaces model-driven polling |
+
+Tool results are compact by default to save the manager's context: one row per worker, no raw ANSI or repeated policy text, no echo of sent prompts, and `read_agent` returns 6 messages unless `limit` is given. `list_active_agents`, `get_agent` and `read_agent` accept `verbose: true` for the full record.
 
 Read, write, delivery lookup, and event tools authenticate their caller and operate on registered open shared workers, not arbitrary sessions or manager terminals. Worker membership is automatic, but connection/readiness checks, human-draft protection, closed-session rejection, and independent lifecycle checks remain enforced. Existing queued writes retain their original request identity; old unknown or revoked operations are not replayed by this migration. Creating new workers through a Hub-created manager requires its explicit machine/project-directory roots; the existing-chat plugin retains the separate compatibility channel described above. The service does not automatically approve worker actions, recursively create managers, or start a new controller turn.
 
