@@ -120,7 +120,7 @@ STATIC = {
 def fixture_state() -> dict:
     """Return fresh synthetic records, never references to mutable global data."""
     return copy.deepcopy({
-        "version": "0.7.0 · DEMO", "demo": True, "hosts": HOSTS, "agents": WORKERS,
+        "version": "0.7.1 · DEMO", "demo": True, "hosts": HOSTS, "agents": WORKERS,
         "outbox": [{"id": "demo-delivery", "host": "demo-build", "thread_id": "demo-release-review", "time": STAMP_EPOCH - 12, "submitted_at": STAMP_EPOCH, "state": "submitted", "text": "演示：请核验发布准备，汇总证据与风险；暂不发布或推送。"}],
         "events": [{"id": 1, "kind": "terminal_input_submitted", "time": STAMP, "data": {"host": "demo-build", "thread_id": "demo-release-review", "text": "演示：Captain 已向指定工作会话派发核验请求。"}}],
     })

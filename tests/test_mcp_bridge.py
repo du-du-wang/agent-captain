@@ -125,7 +125,7 @@ class McpBridgeTests(unittest.TestCase):
         names = {item["name"] for item in responses[1]["result"]["tools"]}
         self.assertEqual(names, {"list_active_agents", "get_agent", "read_agent", "update_agent", "reconnect_agent", "set_auto_reconnect", "reopen_agent", "send_agent_message", "send_terminal_input", "create_agent", "poll_events", "get_delivery", "get_management_policy", "wait_for_agent"})
         self.assertEqual(responses[0]["result"]["serverInfo"]["name"], "ceo-hub")
-        self.assertEqual(responses[0]["result"]["serverInfo"]["version"], "0.7.0")
+        self.assertEqual(responses[0]["result"]["serverInfo"]["version"], "0.7.1")
         self.assertNotIn("private-secret", process.stdout)
 
     def test_auto_reconnect_setting_preserves_explicit_choice_and_exact_generation(self):

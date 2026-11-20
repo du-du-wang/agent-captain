@@ -48,7 +48,7 @@ class PluginPackagingTests(unittest.TestCase):
     def test_source_identity_and_machine_independent_template(self):
         manifest = self.load(self.source_plugin / ".codex-plugin" / "plugin.json")
         self.assertEqual(manifest["name"], "agent-captain")
-        self.assertEqual(manifest["version"], "0.7.0")
+        self.assertEqual(manifest["version"], "0.7.1")
         self.assertEqual(manifest["interface"]["displayName"], "AgentCaptain")
         self.assertEqual(self.load(self.source_plugin / ".mcp.json"), {"mcpServers": {}})
         catalog = self.load(self.clone / ".agents" / "plugins" / "marketplace.json")
@@ -174,11 +174,11 @@ class PluginPackagingTests(unittest.TestCase):
         plugin = Path(result["plugin_root"])
         manifest = self.load(plugin / ".codex-plugin" / "plugin.json")
         self.assertEqual(result["plugin"], "ceo-hub@ceo-hub-local")
-        self.assertEqual(result["version"], "0.7.0")
+        self.assertEqual(result["version"], "0.7.1")
         self.assertTrue(result["legacy_ceo_identity"])
         self.assertEqual(plugin, self.output / "plugins" / "ceo-hub")
         self.assertEqual(manifest["name"], "ceo-hub")
-        self.assertEqual(manifest["version"], "0.7.0")
+        self.assertEqual(manifest["version"], "0.7.1")
         self.assertEqual(manifest["interface"]["displayName"], "AgentCaptain")
         skill = (plugin / "skills" / "ceo-hub" / "SKILL.md").read_text(encoding="utf-8")
         self.assertTrue(skill.startswith("---\nname: ceo-hub\n"))
@@ -341,7 +341,7 @@ class PluginPackagingTests(unittest.TestCase):
         result = self.generate()
         # Mimic a host copying this package into an installation cache. The
         # absolute bridge reference remains valid without plugin-root expansion.
-        cache = self.base / "isolated codex cache" / "agent-captain-local" / "agent-captain" / "0.7.0"
+        cache = self.base / "isolated codex cache" / "agent-captain-local" / "agent-captain" / "0.7.1"
         shutil.copytree(result["plugin_root"], cache)
         cwd = self.base / "unrelated working directory"
         cwd.mkdir()
@@ -371,7 +371,7 @@ class PluginPackagingTests(unittest.TestCase):
         responses = [json.loads(line) for line in process.stdout.splitlines()]
         self.assertEqual([response["id"] for response in responses], [1, 2])
         self.assertEqual(responses[0]["result"]["protocolVersion"], "2025-11-25")
-        self.assertEqual(responses[0]["result"]["serverInfo"]["version"], "0.7.0")
+        self.assertEqual(responses[0]["result"]["serverInfo"]["version"], "0.7.1")
         names = {tool["name"] for tool in responses[1]["result"]["tools"]}
         self.assertEqual(names, {"list_active_agents", "get_agent", "read_agent", "send_agent_message",
                                  "create_agent", "send_terminal_input", "poll_events", "get_delivery",
@@ -381,7 +381,7 @@ class PluginPackagingTests(unittest.TestCase):
 
     def test_legacy_cached_package_advertises_new_tools_and_compatible_server_identity(self):
         result = configure.configure_plugin(self.output, repo_root=self.clone, legacy_ceo_identity=True)
-        cache = self.base / "isolated legacy cache" / "ceo-hub-local" / "ceo-hub" / "0.7.0"
+        cache = self.base / "isolated legacy cache" / "ceo-hub-local" / "ceo-hub" / "0.7.1"
         shutil.copytree(result["plugin_root"], cache)
         server = self.load(cache / ".mcp.json")["mcpServers"]["ceo_hub"]
         messages = [
@@ -405,7 +405,7 @@ class PluginPackagingTests(unittest.TestCase):
         self.assertEqual(process.stderr, "")
         responses = [json.loads(line) for line in process.stdout.splitlines()]
         info = responses[0]["result"]["serverInfo"]
-        self.assertEqual(info, {"name": "ceo-hub", "title": "AgentCaptain", "version": "0.7.0"})
+        self.assertEqual(info, {"name": "ceo-hub", "title": "AgentCaptain", "version": "0.7.1"})
         names = {item["name"] for item in responses[1]["result"]["tools"]}
         self.assertIn("update_agent", names)
         self.assertIn("reconnect_agent", names)
@@ -436,7 +436,7 @@ class PluginPackagingTests(unittest.TestCase):
         self.assertEqual(process.stderr, "")
         result = json.loads(process.stdout)
         self.assertEqual(result["plugin"], "ceo-hub@ceo-hub-local")
-        self.assertEqual(result["version"], "0.7.0")
+        self.assertEqual(result["version"], "0.7.1")
         self.assertTrue(result["legacy_ceo_identity"])
         self.assertTrue((target / "plugins" / "ceo-hub" / "skills" / "ceo-hub" / "SKILL.md").is_file())
         self.assertFalse((target / "plugins" / "agent-captain").exists())

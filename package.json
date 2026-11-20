@@ -1,6 +1,6 @@
 {
   "name": "agent-captain-terminal",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "private": true,
   "description": "AgentCaptain — One captain for agents across your machines.",
   "scripts": {

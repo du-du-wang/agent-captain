@@ -47,7 +47,7 @@ class BrandingTests(unittest.TestCase):
         self.assertIn("AgentCaptain", package["description"])
         self.assertIn("One captain for agents across your machines.", package["description"])
         self.assertEqual({__version__, app.VERSION, terminal_hub.VERSION, mcp_bridge.VERSION,
-                          package["version"], lock["version"], lock["packages"][""]["version"]}, {"0.7.0"})
+                          package["version"], lock["version"], lock["packages"][""]["version"]}, {"0.7.1"})
         self.assertEqual(lock["name"], package["name"])
         self.assertEqual(lock["packages"][""]["name"], package["name"])
         broker = (ROOT / "terminal" / "terminal_broker.cjs").read_text(encoding="utf-8")
@@ -111,7 +111,7 @@ class BrandingTests(unittest.TestCase):
                                   "params": {"protocolVersion": "2025-11-25", "capabilities": {},
                                              "clientInfo": {"name": "branding-test", "version": "1"}}})
         info = response["result"]["serverInfo"]
-        self.assertEqual(info, {"name": "ceo-hub", "title": "AgentCaptain", "version": "0.7.0"})
+        self.assertEqual(info, {"name": "ceo-hub", "title": "AgentCaptain", "version": "0.7.1"})
 
     def test_existing_connection_override_is_shared_by_service_and_adapter(self):
         with tempfile.TemporaryDirectory() as folder:

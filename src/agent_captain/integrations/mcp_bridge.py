@@ -31,7 +31,7 @@ else:
     ROOT = Path(__file__).resolve().parent
 
 
-VERSION = "0.7.0"
+VERSION = "0.7.1"
 PROTOCOL_VERSIONS = ("2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25")
 MAX_MESSAGE_BYTES = 2 * 1024 * 1024
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024

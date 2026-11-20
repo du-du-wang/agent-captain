@@ -1,6 +1,6 @@
 {
   "name": "agent-captain",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "一个主控，统筹本机与远程 Agent：在当前对话中派发任务、跟进进度、协调协作和审查交付。",
   "author": {"name": "AgentCaptain contributors"},
   "skills": "./skills/",

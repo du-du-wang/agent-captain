@@ -107,7 +107,7 @@ To upgrade an existing `ceo-hub@ceo-hub-local` installation without introducing
 a second plugin identity, explicitly generate a compatibility package instead:
 
 ```sh
-python scripts/configure_plugin.py --legacy-ceo-identity --output .runtime/plugin-marketplace-compat-v0.7.0
+python scripts/configure_plugin.py --legacy-ceo-identity --output .runtime/plugin-marketplace-compat-v0.7.1
 ```
 
 This keeps the plugin name `ceo-hub`, skill name `ceo-hub`, marketplace name
@@ -124,7 +124,7 @@ identity you intend to use, not several, to avoid duplicate tools.
 Review the generated commands before registration. A running MCP process and
 its discovered tool list do not hot-reload after source changes: reload that
 MCP connection or reopen the controlling chat and verify `tools/list` includes
-`update_agent`, `reconnect_agent`, `set_auto_reconnect` and `reopen_agent`, with server version `0.7.0`. Updating the
+`update_agent`, `reconnect_agent`, `set_auto_reconnect` and `reopen_agent`, with server version `0.7.1`. Updating the
 installed skill/manifest is separate from replacing a bridge file; local plugin
 cache loading may require an app reload or restart. Do not restart the terminal
 broker or a worker to refresh plugin tools.

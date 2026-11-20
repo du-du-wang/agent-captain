@@ -638,7 +638,7 @@ class ControllerService:
             (workspace / ".codex").mkdir(mode=0o700)
             descriptor = owned / "connection.json"
             token = secrets.token_urlsafe(40)
-            _private_write(descriptor, json.dumps({"url": self.origin, "token": token, "controller_id": cid, "version": "0.7.0"}))
+            _private_write(descriptor, json.dumps({"url": self.origin, "token": token, "controller_id": cid, "version": "0.7.1"}))
             _private_write(workspace / "AGENTS.md", ROLE)
             settings = self._mcp_settings(descriptor, cid)
             lines = ["[mcp_servers.agent_captain]", "command = " + json.dumps(settings["command"]),

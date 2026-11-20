@@ -229,7 +229,7 @@ class ControllerTests(unittest.TestCase):
         c = self.prepare()
         row = self.service._row(c["id"])
         descriptor = json.loads(Path(row["descriptor_file"]).read_text())
-        self.assertEqual(descriptor["version"], "0.7.0")
+        self.assertEqual(descriptor["version"], "0.7.1")
         self.assertEqual(c["state"], "prepared")
         self.assertEqual(self.service.authenticate(descriptor["token"]), c["id"])
         self.assertIsNone(self.service.authenticate("wrong" * 10))
