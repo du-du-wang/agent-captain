@@ -421,9 +421,8 @@ test('AgentCaptain branding explains one lead across machines without the previo
   assert.doesNotMatch(html, /\u961f\u957f/);
   assert.match(html, /One captain for agents across your machines\./);
   assert.match(html, /一个主控，统筹本机与远程 Agent。/);
-  assert.match(html, /派发、跟进、协调和交付审查/);
-  assert.match(html, /多机器统一管理.*集中汇总.*真实终端直接对话/);
   assert.match(html, /你与 Captain 共用这个终端/);
+  assert.doesNotMatch(html, /controller-benefits|ONE CAPTAIN · LOCAL/);
   assert.doesNotMatch(html, /PRON|Personal Remote Ops|CEO|run_pron|pron-hub-logo/i);
   assert.doesNotMatch(css, /#f59b23|\.wordmark span\{[^}]*background:/i);
   assert.match(css, /@media\(max-width:700px\)\{\.topbar\{[^}]*flex-wrap:wrap/);

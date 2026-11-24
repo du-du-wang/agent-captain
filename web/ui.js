@@ -231,7 +231,7 @@ function empty(parent, text) { parent.append(node('p', text, 'empty-copy')); }
 function inline(parent, text) { for (const part of String(text).split(/(`[^`]+`|\*\*[^*]+\*\*)/g)) { if (part.startsWith('`') && part.endsWith('`')) parent.append(node('code', part.slice(1, -1))); else if (part.startsWith('**') && part.endsWith('**')) parent.append(node('strong', part.slice(2, -2))); else parent.append(document.createTextNode(part)); } }
 function formatted(parent, text) { let code = null; for (const line of String(text).split('\n')) { if (line.trim().startsWith('```')) { if (code) { parent.append(code); code = null; } else code = node('pre', '', 'code-block'); } else if (code) code.textContent += line + '\n'; else { const paragraph = node('div', null, 'prose-line'); inline(paragraph, line); parent.append(paragraph); } } if (code) parent.append(code); }
 function renderHosts() {
-  const list = $('#hosts'); list.replaceChildren(); if (!state.hosts.length) empty(list, '尚未配置机器。点击 + 添加本机或 SSH 服务器。');
+  const list = $('#hosts'); list.replaceChildren(); if (!state.hosts.length) empty(list, '还没有机器，点 + 添加本机或 SSH 服务器。');
   for (const host of state.hosts) {
     const display = hostDisplayStatus(host);
     const card = node('div', null, 'host-card' + (host.id === agentFilters.host ? ' selected' : '')); const select = button('', 'host-select', async () => selectHost(host.id));
@@ -247,7 +247,7 @@ function renderHosts() {
     card.append(controls); if (host.error) card.append(node('p', host.error, 'host-error')); list.append(card);
   }
   $('#new-agent').disabled = !selectedHost; $('#discover-button').disabled = !selectedHost;
-  $('#machine-caption').textContent = agentFilters.host ? `仅看：${state.hosts.find(host => host.id === agentFilters.host)?.label || agentFilters.host}` : '跨机器查看 · 新终端使用当前选定机器';
+  $('#machine-caption').textContent = agentFilters.host ? `仅看：${state.hosts.find(host => host.id === agentFilters.host)?.label || agentFilters.host}` : '全部机器';
   renderWorkbenchFilters();
 }
 function selectHost(hostId) {
@@ -259,6 +259,20 @@ async function selectAgent(agent, options = {}) {
   if (selectedAgent === agentKey(agent)) { if (options.focus && terminalSession) terminalSession.term.focus(); return; }
   selectedAgent = agentKey(agent); selectedHost = agentFilters.host || agent.host; restoreAgentKey = null; historyGeneration++; resetConversationOutput(); disposeTerminal(); persistWorkbench(); updateAgentLocation(); renderHosts(); renderAgents(true); renderDetail();
   if (isTerminal(agent)) await openTerminal(agent, {focus: !!options.focus}); else if (!options.restore) await readHistory();
+}
+function agentStateTag(agent) {
+  if (isClosedAgent(agent)) return {tone: 'closed', text: '已关闭'};
+  if (isClosingAgent(agent)) return {tone: 'warn', text: '关闭中'};
+  if (!isTerminal(agent)) return {tone: 'closed', text: '历史记录'};
+  if (displayDisconnected(agent)) return {tone: 'bad', text: '已断开'};
+  if (agentNeedsAttention(agent)) return {tone: 'warn', text: '需要处理'};
+  return {tone: 'ok', text: '已连接'};
+}
+function relativeTime(value) {
+  if (!value) return '';
+  const ms = typeof value === 'number' ? value * (value < 1e12 ? 1000 : 1) : Date.parse(value); if (!Number.isFinite(ms)) return '';
+  const seconds = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  return seconds < 60 ? '刚刚' : seconds < 3600 ? `${Math.floor(seconds / 60)} 分钟前` : seconds < 86400 ? `${Math.floor(seconds / 3600)} 小时前` : `${Math.floor(seconds / 86400)} 天前`;
 }
 function renderAgents(force = false) {
   // A live registry update should not destroy a name being edited or steal its
@@ -276,26 +290,26 @@ function renderAgents(force = false) {
   }
   for (const agent of matches) {
     const terminal = isTerminal(agent), card = node('div', null, 'agent-card workbench-agent-card' + (agentKey(agent) === selectedAgent ? ' selected' : '') + (agent.pinned ? ' pinned' : ''));
-    const heading = node('div', null, 'agent-card-topline'); heading.append(node('span', workerMachineName(agent), 'agent-host-label'));
+    const heading = node('div', null, 'agent-card-topline'); const tag = agentStateTag(agent); heading.append(node('span', tag.text, 'agent-state-tag ' + tag.tone), node('span', workerMachineName(agent), 'agent-host-label'));
     const pin = button(agent.pinned ? '★' : '☆', 'agent-pin-button' + (agent.pinned ? ' pinned' : ''), async () => updateAgent(agent, {pinned: !agent.pinned})); pin.setAttribute('aria-label', `${agent.pinned ? '取消置顶' : '置顶'} ${workerDisplayName(agent)}`); pin.setAttribute('aria-pressed', String(!!agent.pinned)); heading.append(pin); card.append(heading);
     const open = button('', 'agent-select', async () => selectAgent(agent));
     const status = terminal ? isClosedAgent(agent) || isClosingAgent(agent) ? statusLabels[agent.status || agent.state] || '终端已暂停' : displayDisconnected(agent) ? disconnectedLabel : agent.command ? `显示连接已连接 · ${agent.command}` : '显示连接已连接' : '尚未连接终端';
-    open.append(node('strong', workerDisplayName(agent)), node('span', status, 'agent-meta'), node('span', agent.cwd || '目录未记录', 'agent-directory'), node('span', shortId(agent.thread_id), 'agent-id')); card.append(open);
-    if (agent.management?.label) card.append(node('span', agent.management.label, 'agent-management-label' + (agentNeedsAttention(agent) ? ' attention' : '')));
+    const summary = agent.management?.label || status, stamp = relativeTime(agent.updated_at || agent.last_activity_at); open.append(node('strong', workerDisplayName(agent)), node('span', stamp ? `${summary} · ${stamp}` : summary, 'agent-meta'), node('span', agent.cwd || '目录未记录', 'agent-directory'), node('span', shortId(agent.thread_id), 'agent-id')); card.append(open);
     if (canAutoReconnect(agent) && agent.auto_reconnect?.enabled === true) {
       const view = autoReconnectView(agent); card.append(node('span', view.text, `agent-auto-reconnect-status ${view.tone}`));
     }
-    const quick = node('div', null, 'agent-quick-actions');
-    quick.append(button(terminal ? '打开终端' : '查看记录', 'subtle', async () => selectAgent(agent)));
-    const rename = button(agent.alias ? '重命名' : '命名', 'subtle agent-rename-button', async () => openAgentRename(agent)); rename.setAttribute('aria-label', `${agent.alias ? '重命名' : '命名'} ${workerDisplayName(agent)}`); quick.append(rename);
-    if (terminal) quick.append(button('会话输出', 'subtle', async () => { await selectAgent(agent); if (selectedAgent === agentKey(agent)) await readConversationOutput(); }));
-    if (terminal && !isClosedAgent(agent) && !isClosingAgent(agent) && displayDisconnected(agent) && agent.management?.primary_action !== 'none') quick.append(button('重连原终端', 'agent-reconnect-button', async () => { await selectAgent(agent); if (selectedAgent === agentKey(agent)) await reconnectTerminal(); }));
-    card.append(quick);
-    const more = node('details', null, 'agent-more'), summary = node('summary', '更多'); more.append(summary);
-    const moreActions = node('div', null, 'agent-more-actions'); moreActions.append(button('复制直达链接', 'text-button', async () => copyAgentLink(agent)));
+    const reconnectable = terminal && !isClosedAgent(agent) && !isClosingAgent(agent) && displayDisconnected(agent) && agent.management?.primary_action !== 'none';
+    if (reconnectable) card.append(button('重连原终端', 'agent-reconnect-button', async () => { await selectAgent(agent); if (selectedAgent === agentKey(agent)) await reconnectTerminal(); }));
+    const more = node('details', null, 'agent-more'), summaryEl = node('summary', '更多'); more.append(summaryEl);
+    const moreActions = node('div', null, 'agent-more-actions');
+    moreActions.append(button(terminal ? '打开终端' : '查看记录', 'text-button', async () => selectAgent(agent)));
+    const rename = button(agent.alias ? '重命名' : '命名', 'text-button agent-rename-button', async () => openAgentRename(agent)); rename.setAttribute('aria-label', `${agent.alias ? '重命名' : '命名'} ${workerDisplayName(agent)}`); moreActions.append(rename);
+    if (terminal) moreActions.append(button('会话输出', 'text-button', async () => { await selectAgent(agent); if (selectedAgent === agentKey(agent)) await readConversationOutput(); }));
+    moreActions.append(button('复制直达链接', 'text-button', async () => copyAgentLink(agent)));
     if (canAutoReconnect(agent)) moreActions.append(autoReconnectCheckbox(agent));
     if (canReopenAgent(agent) || canInspectPendingReopen(agent)) moreActions.append(button(canInspectPendingReopen(agent) ? '核对原重开结果…' : '重开终端…', 'text-button agent-reopen-link', async () => openReopenTerminal(agent)));
-    if (terminal && !isClosedAgent(agent) && !isClosingAgent(agent)) moreActions.append(button('关闭终端…', 'text-button agent-close-link', async () => { await selectAgent(agent); if (selectedAgent === agentKey(agent)) openCloseTerminal(); })); more.append(moreActions); card.append(more);
+    if (terminal && !isClosedAgent(agent) && !isClosingAgent(agent)) moreActions.append(button('关闭终端…', 'text-button agent-close-link', async () => { await selectAgent(agent); if (selectedAgent === agentKey(agent)) openCloseTerminal(); }));
+    more.append(moreActions); card.append(more);
     if (renameTarget?.key === agentKey(agent) && renameTarget.mode !== 'dialog') {
       const form = node('form', null, 'agent-inline-rename'), input = node('input'); input.value = renameTarget.value; input.maxLength = 200; input.required = true; input.setAttribute('aria-label', '工作会话新名称'); input.disabled = renameTarget.saving;
       input.oninput = () => { renameTarget.value = input.value; };
@@ -1279,7 +1293,7 @@ async function readHistory() {
 function renderOutbox() {
   const box = $('#outbox'); box.replaceChildren(); const records = state.outbox.slice().sort((a, b) => (b.time || 0) - (a.time || 0)).slice(0, 8); if (!records.length) empty(box, '暂无 Captain 发送记录。你在终端直接输入时不会生成任务卡。');
   for (const message of records) {
-    const card = node('article', null, 'feedback-card'), agent = state.agents.find(item => item.host === message.host && item.thread_id === message.thread_id);
+    const tone = ['failed', 'interrupted', 'not_sent'].includes(message.state) ? ' bad' : ['blocked', 'human_busy', 'waiting_for_agent'].includes(message.state) ? ' warn' : ['submitted', 'delivered', 'completed'].includes(message.state) ? ' ok' : '', card = node('article', null, 'feedback-card' + tone), agent = state.agents.find(item => item.host === message.host && item.thread_id === message.thread_id);
     card.append(node('strong', deliveryLabels[message.state] || message.state || '已记录'), node('div', `${agent?.alias || shortId(message.thread_id)} · ${message.host}`, 'muted'));
     const times = node('div', null, 'delivery-times'), created = timestamp(message.time), submitted = timestamp(message.submitted_at);
     for (const [label, value, help] of [
@@ -1640,6 +1654,7 @@ $('#discover-form').onsubmit = event => { event.preventDefault(); action($('#dis
 }); };
 $('#clear-candidates').onclick = () => { $('#candidates-section').hidden = true; candidates = []; };
 $('#detail-rename').onclick = () => { const agent = currentAgent(); if (agent) openAgentRename(agent, {dialog: true}); };
+$('#detail-close').onclick = () => { selectedAgent = null; restoreAgentKey = null; historyGeneration++; resetConversationOutput(); disposeTerminal(); persistWorkbench(); updateAgentLocation(); renderAgents(true); renderDetail(); };
 $('#rename-name').oninput = () => { if (renameTarget?.mode === 'dialog') renameTarget.value = $('#rename-name').value; };
 $('#rename-form').onsubmit = event => { event.preventDefault(); const target = renameTarget, agent = target && registeredAgent(target.key); if (target?.mode === 'dialog' && agent) void action($('#rename-save'), () => saveAgentRename(agent)); };
 $('#rename-dialog').addEventListener('close', () => { if (renameTarget?.mode === 'dialog' && !renameTarget.saving) { renameDrafts.delete(renameTarget.key); renameTarget = null; renderAgents(true); } });
