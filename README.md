@@ -12,11 +12,11 @@
   <p><a href="README.zh-CN.md">中文</a> · <a href="#get-started">Get started</a> · <a href="docs/index.md">Documentation</a> · <a href="CONTRIBUTING.md">Contribute</a> · <a href="SECURITY.md">Security</a></p>
 </div>
 
-![AgentCaptain workbench with synthetic demonstration data](docs/images/workspace-demo.jpg)
+![AgentCaptain light workbench with one row per agent and synthetic demonstration data](docs/images/workspace-demo.jpg)
 
 *A demonstration of the workbench using synthetic machines, sessions, and activity—not a recording of live workers or verified project results.*
 
-[Reproduce the offline demo →](docs/guides/visual-demo.md)
+[See the worker detail drawer](docs/images/worker-detail-demo.jpg) · [Reproduce the offline demo →](docs/guides/visual-demo.md)
 
 ## Less window switching. More direction.
 

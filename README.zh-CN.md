@@ -12,11 +12,11 @@
   <p><a href="README.md">English</a> · <a href="#快速开始">快速开始</a> · <a href="docs/index.md">文档导航</a> · <a href="CONTRIBUTING.md">参与贡献</a> · <a href="SECURITY.md">安全说明</a></p>
 </div>
 
-![AgentCaptain 工作台，使用虚构演示数据](docs/images/workspace-demo.jpg)
+![AgentCaptain 浅色工作台，每个 Agent 独占一行，使用虚构演示数据](docs/images/workspace-demo.jpg)
 
 *截图中的机器、会话和工作动态均为演示数据，不是实际运行记录，也不代表真实项目已完成验证。*
 
-[本机复现离线演示 →](docs/guides/visual-demo.md)
+[查看工作会话详情抽屉](docs/images/worker-detail-demo.jpg) · [本机复现离线演示 →](docs/guides/visual-demo.md)
 
 ## 少切窗口，把精力放回目标
 

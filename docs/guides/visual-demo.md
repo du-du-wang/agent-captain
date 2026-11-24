@@ -39,10 +39,11 @@ This preview proves how the interface renders and navigates with these fixtures.
 
 | Asset | What it shows |
 |---|---|
-| [workspace-demo.jpg](../images/workspace-demo.jpg) | Cross-machine workbench and a selected synthetic worker. |
+| [workspace-demo.jpg](../images/workspace-demo.jpg) | Light workbench overview with one row per worker across machines. |
+| [worker-detail-demo.jpg](../images/worker-detail-demo.jpg) | A synthetic worker's shared terminal in the detail drawer. |
 | [captain-demo.jpg](../images/captain-demo.jpg) | The synthetic management display. |
 
-Both screenshots are captures of the actual web UI served by this preview, **not AI-generated screens**. They retain the browser capture's native JPEG bytes and matching `.jpg` extensions, with no pixel edits or format conversion. All displayed machines, tasks, messages and response timings remain synthetic fixtures, not observations or successful delivery evidence from real workers. The current identity uses the selected open-ring compass; see the [brand assets and usage](../../assets/brand/README.md) and its [generation brief](../../assets/brand/generation.md).
+These screenshots are captures of the actual web UI served by this preview, **not AI-generated screens**. They retain the browser capture's native JPEG bytes and matching `.jpg` extensions, with no pixel edits or format conversion. All displayed machines, tasks, messages and response timings remain synthetic fixtures, not observations or successful delivery evidence from real workers. The current identity uses the selected open-ring compass; see the [brand assets and usage](../../assets/brand/README.md) and its [generation brief](../../assets/brand/generation.md).
 
 To update the showcase:
 
